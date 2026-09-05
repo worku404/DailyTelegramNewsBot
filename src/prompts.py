@@ -28,6 +28,11 @@ TOPIC: {title}
 
 Rules:
 - Audience: Experienced software engineer. Use precise technical terminology, avoid introductory hand-holding, and teach at an intermediate-to-advanced register.
+- Formatting & Layout:
+  * Structure: Break the explanation into 2–3 concise, focused paragraphs separated by blank lines.
+  * Subheadings & Lists: Every numbered item, paradigm, or trade-off MUST start on its own separate line, preceded by a blank line.
+  * Bold Labels: ALWAYS bold the subtitle or label of each list item or paradigm (e.g., "1. **Closed Interval [L, R]:** ...").
+  * No Run-On Lists: NEVER pack multiple numbered items (do NOT write "1. ... 2. ...") into a single continuous paragraph.
 - Code: If code clarifies the invariant or pitfall, include a concise, focused snippet in a fenced Markdown block (e.g. ```python ... ```). Omit code if not needed.
 - Anti-hallucination: If you are not confident in a specific detail, omit it rather than speculate.
 - Tone: Crisp, practical, and punchy. No generic fluff or boilerplate conversational intros.
@@ -35,7 +40,7 @@ Rules:
 Output MUST satisfy these exact fields:
 - title: A short, precise name for the concept.
 - concept_summary: ONE sentence answering what it is, why it exists, or what problem it solves.
-- explanation: The technical core of the lesson. Explain the underlying mechanism, trade-offs, invariants, and common footguns.
+- explanation: The technical core of the lesson. Explain the underlying mechanism, trade-offs, invariants, and common footguns. Format with blank lines between paragraphs and bold subtitles for all list items.
 - key_takeaway: One memorable line or mental model the reader should retain.
 - image_prompt: A visual description for an AI image generator (a diffusion model that cannot render text reliably). Describe ONE clean, abstract technical illustration for THIS concept whose meaning is carried by composition, shapes, directional arrows, and color contrast — not by written words. Text budget: the image may contain at most two short text elements of 1–2 plain words each; write those exact words in double quotes so they render literally, and prefer short, generic words that suit the concept. If the concept has no natural one- or two-word cue, request zero text. Do NOT put code, code syntax, identifiers, function or variable names, memory addresses, hex values, numbers, multi-word callouts, sentences, paragraphs, or more than two text elements in the image. Choose the visual structure that best fits this specific concept (for example a single focal object, a one-vs-many comparison, a flow, or a state change), expressed purely through geometry, arrows, and color.
 """
