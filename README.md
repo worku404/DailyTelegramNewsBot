@@ -23,16 +23,16 @@ Powered by the **Google GenAI SDK** (`google-genai`), **Hugging Face Router Infe
      │
      ├──► src/telegram_formatter.py ─► telegramify-markdown (AST Markdown to MessageEntity objects)
      │
-     └──► Telegram Bot API ─────► 1. sendPhoto (diagram + short title caption)
+     └──► Telegram Bot API ─────► 1. sendPhoto (concept diagram)
                                   2. sendMessage (full lesson + native entities)
 ```
 
 ### Execution Flow & Invariants
-1. **Deterministic Sequential Traversal:** Topics are defined in [seeds.py](file:///c:/Users/hi/Downloads/python/DailyTelegramNewsBot/seeds.py). Each run processes **exactly one topic** per day.
+1. **Deterministic Sequential Traversal:** Topics are defined in [src/topics.py](file:///c:/Users/hi/Downloads/python/DailyTelegramNewsBot/src/topics.py). Each run processes **exactly one topic** per day.
 2. **Two-Stage Telegram Delivery:** 
-   * **Stage 1 (Media):** Concept diagram is sent via `sendPhoto` with a short title caption.
+   * **Stage 1 (Media):** Concept diagram is sent via `sendPhoto` as a standalone clean image.
    * **Stage 2 (Text):** Full lesson body is sent via `sendMessage` using native AST entities.
-   * *Rationale:* Bypasses Telegram's 1,024-character caption limit on photos while allowing rich 4,096-character lessons with syntax-highlighted code blocks.
+   * *Rationale:* Keeps the image uncluttered while allowing rich 4,096-character lessons with syntax-highlighted code blocks.
 3. **Fail-Fast Semantics:** The cursor in `state.json` only advances **after** successful delivery of both media and text. If any step fails, the script halts with a non-zero exit code and the topic is retried on the next execution.
 4. **AST Entity Formatting (Zero-Escaping):** Uses `telegramify-markdown` to convert Markdown directly into Telegram `MessageEntity` objects with pre-calculated UTF-16 byte offsets. This eliminates escaping traps on special characters (`.`, `!`, `<`, `>`, `&`).
 
@@ -117,11 +117,10 @@ Go to your GitHub repository → **Settings → Secrets and variables → Action
 1. **Concept Diagram Card:** Synthesized via Stable Diffusion 3 Medium and delivered as a high-contrast visual preview.
 2. **Native Message Entities:** Formatted with typography primitives:
    * **Title:** Bold header
-   * **Summary:** Italic hook
-   * **Subheadings:** Bold section titles
-   * **Lists:** Numbered list items with bold labels
+   * **Summary:** Italic quote card (`> *...*`)
+   * **Subheadings & Lists:** Bold subtitles on dedicated lines with clean paragraph spacing
    * **Code Blocks:** Syntax-highlighted `<pre><code>` blocks with copy buttons
-   * **Key Takeaway:** Tap-to-reveal spoiler
+   * **Key Takeaway:** Highlighted quote callout card (`> ...`)
 
 ---
 
