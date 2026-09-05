@@ -30,12 +30,13 @@ jobs:
 
       - name: Run micro-lesson publisher
         env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          GEMINI_MODEL_NAME: ${{ secrets.GEMINI_MODEL_NAME || vars.GEMINI_MODEL_NAME }}
-          HF_IMAGE_TOKEN: ${{ secrets.HF_IMAGE_TOKEN }}
+          API1_KEY: ${{ secrets.API1_KEY }}
+          API2_KEY: ${{ secrets.API2_KEY }}
+          API3_KEY: ${{ secrets.API3_KEY }}
           HF_IMAGE_TOKEN_1: ${{ secrets.HF_IMAGE_TOKEN_1 }}
           HF_IMAGE_TOKEN_2: ${{ secrets.HF_IMAGE_TOKEN_2 }}
           HF_IMAGE_TOKEN_3: ${{ secrets.HF_IMAGE_TOKEN_3 }}
+          GEMINI_MODEL_NAME: ${{ secrets.GEMINI_MODEL_NAME || vars.GEMINI_MODEL_NAME }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: python bot.py
