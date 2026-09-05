@@ -119,7 +119,10 @@ class TestTelegramFormatter(unittest.TestCase):
         self.assertIn("bold", entity_types)
         self.assertIn("italic", entity_types)
         self.assertIn("pre", entity_types)
-        self.assertIn("spoiler", entity_types)
+        self.assertIn("blockquote", entity_types)
+        self.assertNotIn("spoiler", entity_types)
+        self.assertNotIn("💡", text)
+        self.assertNotIn("Key Takeaway", text)
 
     def test_length_bounded(self) -> None:
         huge_explanation = "A" * 6000
@@ -182,17 +185,37 @@ class TestImageGenerator(unittest.TestCase):
         self.assertIn("minimalist", pos)
         self.assertIn("photorealistic", neg)
 
+    @patch("time.sleep")
     @patch("requests.post")
-    def test_generate_concept_image_failure(self, mock_post: MagicMock) -> None:
+    def test_generate_concept_image_failure(self, mock_post: MagicMock, mock_sleep: MagicMock) -> None:
         from src.image_generator import generate_concept_image
 
         mock_post.return_value.status_code = 503
         mock_post.return_value.text = "Model warming up"
+        mock_post.return_value.json.return_value = {"estimated_time": 10.0}
 
         with self.assertRaises(RuntimeError) as ctx:
-            generate_concept_image({"image_prompt": "System architecture diagram"})
+            generate_concept_image({"image_prompt": "System architecture diagram"}, max_retries=2, initial_backoff=0.01)
 
         self.assertIn("Hugging Face image generation failed", str(ctx.exception))
+        self.assertEqual(mock_post.call_count, 2)
+        mock_sleep.assert_called_once()
+
+    @patch("time.sleep")
+    @patch("requests.post")
+    def test_generate_concept_image_retry_then_succeed(self, mock_post: MagicMock, mock_sleep: MagicMock) -> None:
+        from src.image_generator import generate_concept_image
+
+        # First attempt returns 503 (model warming up), second attempt succeeds with 200
+        fail_resp = MagicMock(status_code=503, text="Model warming up")
+        fail_resp.json.return_value = {"estimated_time": 12.0}
+        success_resp = MagicMock(status_code=200, content=b"recovered_png_bytes")
+        mock_post.side_effect = [fail_resp, success_resp]
+
+        result = generate_concept_image({"image_prompt": "Pipeline retry test"}, max_retries=3, initial_backoff=0.01)
+        self.assertEqual(result, b"recovered_png_bytes")
+        self.assertEqual(mock_post.call_count, 2)
+        mock_sleep.assert_called_once()
 
 
 class TestBotDelivery(unittest.TestCase):
@@ -228,13 +251,13 @@ class TestBotDelivery(unittest.TestCase):
         mock_post.return_value.json.return_value = {"ok": True, "result": {"message_id": 43}}
 
         fake_photo = b"binary_image_stream"
-        send_telegram_photo("dummy_token", "-100123456", fake_photo, "📌 Hash Tables")
+        send_telegram_photo("dummy_token", "-100123456", fake_photo)
 
         mock_post.assert_called_once()
         url = mock_post.call_args.args[0]
         self.assertEqual(url, "https://api.telegram.org/botdummy_token/sendPhoto")
         self.assertEqual(mock_post.call_args.kwargs["data"]["chat_id"], "-100123456")
-        self.assertEqual(mock_post.call_args.kwargs["data"]["caption"], "📌 Hash Tables")
+        self.assertNotIn("caption", mock_post.call_args.kwargs["data"])
         self.assertIn("photo", mock_post.call_args.kwargs["files"])
 
     @patch("requests.post")
