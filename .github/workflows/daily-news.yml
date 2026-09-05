@@ -33,6 +33,9 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GEMINI_MODEL_NAME: ${{ secrets.GEMINI_MODEL_NAME || vars.GEMINI_MODEL_NAME }}
           HF_IMAGE_TOKEN: ${{ secrets.HF_IMAGE_TOKEN }}
+          HF_IMAGE_TOKEN_1: ${{ secrets.HF_IMAGE_TOKEN_1 }}
+          HF_IMAGE_TOKEN_2: ${{ secrets.HF_IMAGE_TOKEN_2 }}
+          HF_IMAGE_TOKEN_3: ${{ secrets.HF_IMAGE_TOKEN_3 }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: python bot.py
