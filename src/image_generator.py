@@ -24,7 +24,7 @@ from typing import Any
 
 import requests
 
-from src.config import HF_IMAGE_TOKEN
+from src.config import HF_IMAGE_TOKEN, HF_IMAGE_TOKENS
 from src.prompts import IMAGE_NEGATIVE_PROMPT, IMAGE_STYLE_CONSTRAINTS
 
 logger = logging.getLogger("telegram_micro_lesson_bot.image")
@@ -32,7 +32,7 @@ logger = logging.getLogger("telegram_micro_lesson_bot.image")
 HF_MODEL = "stabilityai/stable-diffusion-3-medium-diffusers"
 HF_API_URL = f"https://router.huggingface.co/hf-inference/models/{HF_MODEL}"
 
-MAX_RETRIES = 3
+MAX_ROUNDS = 2
 INITIAL_BACKOFF_SECONDS = 3.0
 
 
@@ -60,30 +60,32 @@ def build_image_prompt(lesson: dict[str, Any]) -> tuple[str, str]:
 
 def generate_concept_image(
     lesson: dict[str, Any],
-    max_retries: int = MAX_RETRIES,
+    tokens: list[str] | None = None,
+    max_retries: int = MAX_ROUNDS,
     initial_backoff: float = INITIAL_BACKOFF_SECONDS,
 ) -> bytes:
-    """Generate a technical concept illustration for a structured lesson with automatic retry.
+    """Generate a technical concept illustration with multi-token failover rotation.
 
-    Retries transient errors (503 model loading, 429 rate limit, 5xx gateway errors,
-    network drops) using exponential backoff or the server's estimated warmup time.
+    Rotates across configured Hugging Face API tokens upon encountering rate limits (429),
+    authorization errors (401/403), or transient server/network issues (503/504).
 
     Args:
         lesson: Gemini lesson payload containing an internal ``image_prompt``.
-        max_retries: Maximum number of generation attempts before raising RuntimeError.
-        initial_backoff: Base delay in seconds before the first retry.
+        tokens: Optional list of HF API tokens for rotation. Defaults to HF_IMAGE_TOKENS.
+        max_retries: Number of retry rounds across the token pool before raising RuntimeError.
+        initial_backoff: Delay in seconds when backing off between retry rounds.
 
     Returns:
         Raw image bytes ready for Telegram multipart upload.
 
     Raises:
-        RuntimeError: If Hugging Face fails after exhausting all retry attempts.
+        RuntimeError: If all token attempts are exhausted without success.
     """
+    active_tokens = list(tokens if tokens is not None else HF_IMAGE_TOKENS)
+    if not active_tokens:
+        active_tokens = [HF_IMAGE_TOKEN]
+
     prompt, negative_prompt = build_image_prompt(lesson)
-    headers = {
-        "Authorization": f"Bearer {HF_IMAGE_TOKEN}",
-        "Content-Type": "application/json",
-    }
     payload = {
         "inputs": prompt,
         "parameters": {
@@ -94,55 +96,67 @@ def generate_concept_image(
     }
 
     last_error_message = ""
-    for attempt in range(1, max_retries + 1):
-        try:
-            logger.info("Requesting image from Hugging Face (attempt %d/%d)...", attempt, max_retries)
-            response = requests.post(HF_API_URL, headers=headers, json=payload, timeout=60)
+    total_tokens = len(active_tokens)
 
-            if response.status_code == 200:
-                logger.info("Hugging Face image generation prompt: %s", prompt)
-                return response.content
+    for round_idx in range(1, max_retries + 1):
+        for token_idx, token in enumerate(active_tokens, start=1):
+            headers = {
+                "Authorization": f"Bearer {token}",
+                "Content-Type": "application/json",
+            }
+            token_label = f"token {token_idx}/{total_tokens} (round {round_idx}/{max_retries})"
+            logger.info("Requesting image from Hugging Face using %s...", token_label)
 
-            # Calculate backoff delay; honor server's estimated warmup time if provided
-            wait_time = initial_backoff * (2 ** (attempt - 1))
-            if response.status_code == 503:
-                try:
-                    data = response.json()
-                    estimated = float(data.get("estimated_time", 0))
-                    if estimated > 0:
-                        wait_time = min(estimated + 2.0, 30.0)
-                except Exception:
-                    pass
+            try:
+                response = requests.post(HF_API_URL, headers=headers, json=payload, timeout=60)
 
-            last_error_message = f"HTTP {response.status_code}: {response.text}"
-            logger.warning(
-                "Hugging Face attempt %d/%d failed (%s). Retrying in %.1fs...",
-                attempt,
-                max_retries,
-                last_error_message,
+                if response.status_code == 200:
+                    logger.info("Hugging Face image generation succeeded using %s.", token_label)
+                    return response.content
+
+                last_error_message = f"HTTP {response.status_code} ({token_label}): {response.text}"
+
+                # On 503 (model loading), honor server's estimated warmup time before failover
+                if response.status_code == 503:
+                    wait_time = initial_backoff
+                    try:
+                        data = response.json()
+                        estimated = float(data.get("estimated_time", 0))
+                        if estimated > 0:
+                            wait_time = min(estimated + 2.0, 30.0)
+                    except Exception:
+                        pass
+                    logger.warning(
+                        "Model warming up on %s. Waiting %.1fs before token failover...",
+                        token_label,
+                        wait_time,
+                    )
+                    time.sleep(wait_time)
+                else:
+                    logger.warning(
+                        "Hugging Face request failed on %s (%s). Failing over to next token...",
+                        token_label,
+                        last_error_message,
+                    )
+
+            except (requests.Timeout, requests.ConnectionError) as exc:
+                last_error_message = f"Network error ({token_label}): {exc}"
+                logger.warning(
+                    "Network error on %s (%s). Failing over to next token...",
+                    token_label,
+                    exc,
+                )
+
+        # Back off before retrying all tokens in the next round
+        if round_idx < max_retries:
+            wait_time = initial_backoff * (2 ** (round_idx - 1))
+            logger.info(
+                "Completed round %d across all tokens. Retrying pool in %.1fs...",
+                round_idx,
                 wait_time,
             )
-
-            # Only retry on transient server or rate-limit codes
-            if response.status_code not in (429, 500, 502, 503, 504):
-                break
-
-            if attempt < max_retries:
-                time.sleep(wait_time)
-
-        except (requests.Timeout, requests.ConnectionError) as exc:
-            last_error_message = f"Network error: {exc}"
-            wait_time = initial_backoff * (2 ** (attempt - 1))
-            logger.warning(
-                "Hugging Face network error on attempt %d/%d (%s). Retrying in %.1fs...",
-                attempt,
-                max_retries,
-                exc,
-                wait_time,
-            )
-            if attempt < max_retries:
-                time.sleep(wait_time)
+            time.sleep(wait_time)
 
     raise RuntimeError(
-        f"Hugging Face image generation failed after {max_retries} attempts: {last_error_message}"
+        f"Hugging Face image generation failed after {max_retries} rounds across {total_tokens} tokens: {last_error_message}"
     )
