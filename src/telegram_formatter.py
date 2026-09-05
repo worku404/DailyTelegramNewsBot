@@ -29,6 +29,12 @@ _CONFIG._markdown_symbol.heading_level_3 = ""
 _CONFIG._markdown_symbol.heading_level_4 = ""
 
 
+def _to_blockquote(text: str) -> str:
+    """Prefix each non-empty line of text with markdown quote syntax '>'."""
+    lines = text.splitlines()
+    return "\n".join(f"> {line}" if line.strip() else ">" for line in lines)
+
+
 def format_lesson(data: Dict[str, Any]) -> Tuple[str, List[Dict[str, Any]]]:
     """Compile structured lesson components into plain text and Telegram MessageEntity dicts.
 
@@ -43,12 +49,15 @@ def format_lesson(data: Dict[str, Any]) -> Tuple[str, List[Dict[str, Any]]]:
     raw_explanation = data.get("explanation", "").strip()
     raw_takeaway = data.get("key_takeaway", "").strip()
 
-    markdown_doc = (
-        f"**{raw_title}**\n\n"
-        f"*{raw_summary}*\n\n"
-        f"{raw_explanation}\n\n"
-        f"💡 **Key Takeaway:** ||{raw_takeaway}||"
-    )
+    parts: List[str] = [f"**{raw_title}**"]
+    if raw_summary:
+        parts.append(_to_blockquote(f"*{raw_summary}*"))
+    if raw_explanation:
+        parts.append(raw_explanation)
+    if raw_takeaway:
+        parts.append(_to_blockquote(raw_takeaway))
+
+    markdown_doc = "\n\n".join(parts)
 
     text, entities = convert(markdown_doc, config=_CONFIG)
 
