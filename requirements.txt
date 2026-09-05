@@ -1,0 +1,4 @@
+google-genai>=1.0,<2.0
+requests==2.32.5
+python-decouple==3.8
+telegramify-markdown>=1.0.0
