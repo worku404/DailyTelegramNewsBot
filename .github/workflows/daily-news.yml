@@ -1,0 +1,46 @@
+# Runs bot.py automatically once a day, using GitHub's hosted runners.
+# bot.py is a thin shim that calls src.pipeline.main(); the orchestration and all
+# modules live in the src/ package. State advances sequentially through src/topics.py.
+
+name: Daily Telegram Micro-Lesson Bot
+
+on:
+  schedule:
+    # GitHub Actions cron runs in UTC. 06:00 UTC daily.
+    - cron: "0 6 * * *"
+  workflow_dispatch: {}
+
+jobs:
+  post-daily-lesson:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run micro-lesson publisher
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_MODEL_NAME: ${{ secrets.GEMINI_MODEL_NAME || vars.GEMINI_MODEL_NAME }}
+          HF_IMAGE_TOKEN: ${{ secrets.HF_IMAGE_TOKEN }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python bot.py
+
+      - name: Persist Topic State
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add state.json
+          git commit -m "chore: advance daily topic index [skip ci]" || echo "No state changes to commit"
+          git push
