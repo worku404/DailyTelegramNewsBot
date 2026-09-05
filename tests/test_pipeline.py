@@ -409,7 +409,7 @@ class TestGeminiRetries(unittest.TestCase):
             valid_response,
         ]
 
-        lesson = generate_lesson("test prompt", max_retries=3, initial_backoff=0.01)
+        lesson = generate_lesson("test prompt", api_keys=["mock_key"], max_retries=3, initial_backoff=0.01)
         self.assertEqual(lesson["title"], "T")
         self.assertEqual(fake_client.models.generate_content.call_count, 2)
         mock_sleep.assert_called_once()
@@ -424,11 +424,35 @@ class TestGeminiRetries(unittest.TestCase):
         fake_client.models.generate_content.side_effect = RuntimeError("Google API unavailable")
 
         with self.assertRaises(RuntimeError) as ctx:
-            generate_lesson("test prompt", max_retries=2, initial_backoff=0.01)
+            generate_lesson("test prompt", api_keys=["mock_key"], max_retries=2, initial_backoff=0.01)
 
-        self.assertIn("Gemini lesson generation failed after 2 attempts", str(ctx.exception))
+        self.assertIn("Gemini lesson generation failed after 2 rounds", str(ctx.exception))
         self.assertEqual(fake_client.models.generate_content.call_count, 2)
         mock_sleep.assert_called_once()
+
+    @patch("time.sleep")
+    @patch("src.lesson_generator.genai.Client")
+    def test_gemini_key_failover(self, mock_client_cls: MagicMock, mock_sleep: MagicMock) -> None:
+        from src.lesson_generator import generate_lesson
+
+        fake_client = MagicMock()
+        mock_client_cls.return_value = fake_client
+
+        # Key 1 fails, Key 2 succeeds immediately on attempt 2
+        valid_response = MagicMock()
+        valid_response.text = '{"title": "T", "concept_summary": "S", "explanation": "E", "key_takeaway": "K", "image_prompt": "I"}'
+        fake_client.models.generate_content.side_effect = [
+            RuntimeError("Key 1 quota exceeded"),
+            valid_response,
+        ]
+
+        lesson = generate_lesson("test prompt", api_keys=["key1", "key2"], max_retries=1, initial_backoff=0.01)
+        self.assertEqual(lesson["title"], "T")
+        self.assertEqual(fake_client.models.generate_content.call_count, 2)
+        # Verify first call used key1 and second call used key2
+        self.assertEqual(mock_client_cls.call_args_list[0].kwargs["api_key"], "key1")
+        self.assertEqual(mock_client_cls.call_args_list[1].kwargs["api_key"], "key2")
+        mock_sleep.assert_not_called()
 
 
 if __name__ == "__main__":
