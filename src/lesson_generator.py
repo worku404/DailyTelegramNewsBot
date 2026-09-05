@@ -25,13 +25,13 @@ from typing import Any
 from google import genai
 from google.genai import types
 
-from src.config import GEMINI_API_KEY, GEMINI_MODEL_NAME
+from src.config import GEMINI_API_KEYS, GEMINI_MODEL_NAME
 from src.prompts import LESSON_SCHEMA
 
 logger = logging.getLogger("telegram_micro_lesson_bot.llm")
 
 GEMINI_TEMPERATURE = 0.2
-MAX_RETRIES = 3
+MAX_ROUNDS = 2
 INITIAL_BACKOFF_SECONDS = 3.0
 
 _FENCE_OPEN = re.compile(r"^```(?:json)?\s*", re.IGNORECASE)
@@ -103,69 +103,75 @@ def _repair_lesson_fields(lesson: dict[str, Any]) -> dict[str, Any]:
 
 def generate_lesson(
     prompt: str,
-    max_retries: int = MAX_RETRIES,
+    api_keys: list[str] | None = None,
+    max_retries: int = MAX_ROUNDS,
     initial_backoff: float = INITIAL_BACKOFF_SECONDS,
 ) -> dict[str, Any]:
-    """Generate a structured software engineering micro-lesson with automatic retry.
+    """Generate a structured software engineering micro-lesson with multi-key failover rotation.
 
-    Retries transient errors (empty response, invalid JSON, network drops, rate limits)
-    using exponential backoff before raising RuntimeError.
+    Rotates across configured Gemini API keys upon encountering rate limits, quota exhaustion,
+    or transient errors.
 
     Args:
         prompt: Formatted prompt string specifying the topic and rules.
-        max_retries: Maximum number of generation attempts before raising RuntimeError.
-        initial_backoff: Base delay in seconds before the first retry.
+        api_keys: Optional list of Gemini API keys. Defaults to GEMINI_API_KEYS.
+        max_retries: Number of retry rounds across all keys before raising RuntimeError.
+        initial_backoff: Delay in seconds when backing off between retry rounds.
 
     Returns:
         A dictionary conforming to LESSON_SCHEMA (title, concept_summary,
         explanation, key_takeaway, image_prompt).
 
     Raises:
-        RuntimeError: If Gemini fails after exhausting all retry attempts.
+        RuntimeError: If Gemini fails after exhausting all keys across all retry rounds.
     """
+    active_keys = list(api_keys if api_keys is not None else GEMINI_API_KEYS)
+
     last_error: Exception | None = None
+    total_keys = len(active_keys)
 
-    for attempt in range(1, max_retries + 1):
-        try:
-            logger.info("Requesting structured lesson from Gemini (attempt %d/%d)...", attempt, max_retries)
-            client = genai.Client(api_key=GEMINI_API_KEY)
-            response = client.models.generate_content(
-                model=GEMINI_MODEL_NAME,
-                contents=prompt,
-                config=types.GenerateContentConfig(
-                    temperature=GEMINI_TEMPERATURE,
-                    response_mime_type="application/json",
-                    response_schema=LESSON_SCHEMA,
-                ),
-            )
+    for round_idx in range(1, max_retries + 1):
+        for key_idx, key in enumerate(active_keys, start=1):
+            key_label = f"key {key_idx}/{total_keys} (round {round_idx}/{max_retries})"
+            logger.info("Requesting structured lesson from Gemini using %s...", key_label)
 
-            raw_text = getattr(response, "text", "")
-            if not raw_text:
-                raise RuntimeError("Gemini returned an empty response.")
+            try:
+                client = genai.Client(api_key=key)
+                response = client.models.generate_content(
+                    model=GEMINI_MODEL_NAME,
+                    contents=prompt,
+                    config=types.GenerateContentConfig(
+                        temperature=GEMINI_TEMPERATURE,
+                        response_mime_type="application/json",
+                        response_schema=LESSON_SCHEMA,
+                    ),
+                )
 
-            lesson = json.loads(_strip_fences(raw_text))
-            logger.info("Raw lesson: %s", lesson.get("image_prompt"))
-            return _repair_lesson_fields(lesson)
+                raw_text = getattr(response, "text", "")
+                if not raw_text:
+                    raise RuntimeError("Gemini returned an empty response.")
 
-        except Exception as exc:
-            last_error = exc
-            wait_time = initial_backoff * (2 ** (attempt - 1))
-            logger.warning(
-                "Gemini attempt %d/%d failed (%s). Retrying in %.1fs...",
-                attempt,
-                max_retries,
-                exc,
+                lesson = json.loads(_strip_fences(raw_text))
+                logger.info("Gemini lesson generation succeeded using %s.", key_label)
+                return _repair_lesson_fields(lesson)
+
+            except Exception as exc:
+                last_error = exc
+                logger.warning(
+                    "Gemini request failed on %s (%s). Failing over to next key...",
+                    key_label,
+                    exc,
+                )
+
+        if round_idx < max_retries:
+            wait_time = initial_backoff * (2 ** (round_idx - 1))
+            logger.info(
+                "Completed round %d across all Gemini keys. Retrying in %.1fs...",
+                round_idx,
                 wait_time,
             )
-
-            # Permanent auth or not-found errors should abort immediately
-            status_code = getattr(exc, "code", None)
-            if status_code in (401, 403, 404):
-                break
-
-            if attempt < max_retries:
-                time.sleep(wait_time)
+            time.sleep(wait_time)
 
     raise RuntimeError(
-        f"Gemini lesson generation failed after {max_retries} attempts: {last_error}"
+        f"Gemini lesson generation failed after {max_retries} rounds across {total_keys} keys: {last_error}"
     ) from last_error
