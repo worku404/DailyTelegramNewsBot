@@ -354,5 +354,47 @@ class TestDoubleEscapeRepair(unittest.TestCase):
         self.assertIn("Line one.\nUse", lesson["explanation"])
 
 
+class TestGeminiRetries(unittest.TestCase):
+    """Validate application-level retry mechanics for Gemini lesson generation."""
+
+    @patch("time.sleep")
+    @patch("src.lesson_generator.genai.Client")
+    def test_gemini_retry_then_succeed(self, mock_client_cls: MagicMock, mock_sleep: MagicMock) -> None:
+        from src.lesson_generator import generate_lesson
+
+        fake_client = MagicMock()
+        mock_client_cls.return_value = fake_client
+
+        # First call fails with a transient exception, second call succeeds with valid JSON
+        valid_response = MagicMock()
+        valid_response.text = '{"title": "T", "concept_summary": "S", "explanation": "E", "key_takeaway": "K", "image_prompt": "I"}'
+
+        fake_client.models.generate_content.side_effect = [
+            RuntimeError("Transient network drop"),
+            valid_response,
+        ]
+
+        lesson = generate_lesson("test prompt", max_retries=3, initial_backoff=0.01)
+        self.assertEqual(lesson["title"], "T")
+        self.assertEqual(fake_client.models.generate_content.call_count, 2)
+        mock_sleep.assert_called_once()
+
+    @patch("time.sleep")
+    @patch("src.lesson_generator.genai.Client")
+    def test_gemini_exhausts_retries_and_raises(self, mock_client_cls: MagicMock, mock_sleep: MagicMock) -> None:
+        from src.lesson_generator import generate_lesson
+
+        fake_client = MagicMock()
+        mock_client_cls.return_value = fake_client
+        fake_client.models.generate_content.side_effect = RuntimeError("Google API unavailable")
+
+        with self.assertRaises(RuntimeError) as ctx:
+            generate_lesson("test prompt", max_retries=2, initial_backoff=0.01)
+
+        self.assertIn("Gemini lesson generation failed after 2 attempts", str(ctx.exception))
+        self.assertEqual(fake_client.models.generate_content.call_count, 2)
+        mock_sleep.assert_called_once()
+
+
 if __name__ == "__main__":
     unittest.main()
