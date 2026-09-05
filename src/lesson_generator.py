@@ -19,6 +19,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+import time
 from typing import Any
 
 from google import genai
@@ -30,6 +31,8 @@ from src.prompts import LESSON_SCHEMA
 logger = logging.getLogger("telegram_micro_lesson_bot.llm")
 
 GEMINI_TEMPERATURE = 0.2
+MAX_RETRIES = 3
+INITIAL_BACKOFF_SECONDS = 3.0
 
 _FENCE_OPEN = re.compile(r"^```(?:json)?\s*", re.IGNORECASE)
 _FENCE_CLOSE = re.compile(r"\s*```$")
@@ -98,35 +101,71 @@ def _repair_lesson_fields(lesson: dict[str, Any]) -> dict[str, Any]:
     return lesson
 
 
-def generate_lesson(prompt: str) -> dict[str, Any]:
-    """Generate a structured software engineering micro-lesson for a given prompt.
+def generate_lesson(
+    prompt: str,
+    max_retries: int = MAX_RETRIES,
+    initial_backoff: float = INITIAL_BACKOFF_SECONDS,
+) -> dict[str, Any]:
+    """Generate a structured software engineering micro-lesson with automatic retry.
+
+    Retries transient errors (empty response, invalid JSON, network drops, rate limits)
+    using exponential backoff before raising RuntimeError.
 
     Args:
         prompt: Formatted prompt string specifying the topic and rules.
+        max_retries: Maximum number of generation attempts before raising RuntimeError.
+        initial_backoff: Base delay in seconds before the first retry.
 
     Returns:
         A dictionary conforming to LESSON_SCHEMA (title, concept_summary,
-        explanation, key_takeaway).
+        explanation, key_takeaway, image_prompt).
 
     Raises:
-        google.genai.errors.APIError: On upstream API errors.
-        json.JSONDecodeError: If output cannot be decoded.
+        RuntimeError: If Gemini fails after exhausting all retry attempts.
     """
-    client = genai.Client(api_key=GEMINI_API_KEY)
-    response = client.models.generate_content(
-        model=GEMINI_MODEL_NAME,
-        contents=prompt,
-        config=types.GenerateContentConfig(
-            temperature=GEMINI_TEMPERATURE,
-            response_mime_type="application/json",
-            response_schema=LESSON_SCHEMA,
-        ),
-    )
+    last_error: Exception | None = None
 
-    raw_text = getattr(response, "text", "")
-    if not raw_text:
-        raise RuntimeError("Gemini returned an empty response.")
+    for attempt in range(1, max_retries + 1):
+        try:
+            logger.info("Requesting structured lesson from Gemini (attempt %d/%d)...", attempt, max_retries)
+            client = genai.Client(api_key=GEMINI_API_KEY)
+            response = client.models.generate_content(
+                model=GEMINI_MODEL_NAME,
+                contents=prompt,
+                config=types.GenerateContentConfig(
+                    temperature=GEMINI_TEMPERATURE,
+                    response_mime_type="application/json",
+                    response_schema=LESSON_SCHEMA,
+                ),
+            )
 
-    lesson = json.loads(_strip_fences(raw_text))
-    logger.info("Raw lesson: %s", lesson.get("image_prompt"))
-    return _repair_lesson_fields(lesson)
+            raw_text = getattr(response, "text", "")
+            if not raw_text:
+                raise RuntimeError("Gemini returned an empty response.")
+
+            lesson = json.loads(_strip_fences(raw_text))
+            logger.info("Raw lesson: %s", lesson.get("image_prompt"))
+            return _repair_lesson_fields(lesson)
+
+        except Exception as exc:
+            last_error = exc
+            wait_time = initial_backoff * (2 ** (attempt - 1))
+            logger.warning(
+                "Gemini attempt %d/%d failed (%s). Retrying in %.1fs...",
+                attempt,
+                max_retries,
+                exc,
+                wait_time,
+            )
+
+            # Permanent auth or not-found errors should abort immediately
+            status_code = getattr(exc, "code", None)
+            if status_code in (401, 403, 404):
+                break
+
+            if attempt < max_retries:
+                time.sleep(wait_time)
+
+    raise RuntimeError(
+        f"Gemini lesson generation failed after {max_retries} attempts: {last_error}"
+    ) from last_error
