@@ -83,8 +83,8 @@ telegram-news-bot/
 3. The resulting numeric ID (e.g. `-1001234567890` for channels/supergroups) is your `TELEGRAM_CHAT_ID`.
 
 ### Step 4 — API Keys
-1. **Google Gemini:** Visit [Google AI Studio](https://aistudio.google.com/) and generate a `GEMINI_API_KEY`.
-2. **Hugging Face:** Visit [Hugging Face Settings Tokens](https://huggingface.co/settings/tokens) and generate a read token for `HF_IMAGE_TOKEN`.
+1. **Google Gemini:** Visit [Google AI Studio](https://aistudio.google.com/) and generate 3 API keys (`API1_KEY`, `API2_KEY`, `API3_KEY`) for multi-key rotation and failover resilience.
+2. **Hugging Face:** Visit [Hugging Face Settings Tokens](https://huggingface.co/settings/tokens) and generate 3 read tokens (`HF_IMAGE_TOKEN_1`, `HF_IMAGE_TOKEN_2`, `HF_IMAGE_TOKEN_3`).
 
 ### Step 5 — Configure Secrets
 
@@ -95,18 +95,26 @@ cp .env.example .env
 ```
 Fill in the required variables:
 ```env
-GEMINI_API_KEY=your_real_gemini_api_key
+API1_KEY=your_first_gemini_api_key
+API2_KEY=your_second_gemini_api_key
+API3_KEY=your_third_gemini_api_key
 GEMINI_MODEL_NAME=gemini-3.5-flash
-HF_IMAGE_TOKEN=your_real_hf_token
+HF_IMAGE_TOKEN_1=your_first_hf_token
+HF_IMAGE_TOKEN_2=your_second_hf_token
+HF_IMAGE_TOKEN_3=your_third_hf_token
 TELEGRAM_BOT_TOKEN=your_real_telegram_token
 TELEGRAM_CHAT_ID=-1001234567890
 ```
 
 #### Production (GitHub Actions)
 Go to your GitHub repository → **Settings → Secrets and variables → Actions → New repository secret**, and create:
-* `GEMINI_API_KEY`
+* `API1_KEY`
+* `API2_KEY`
+* `API3_KEY`
+* `HF_IMAGE_TOKEN_1`
+* `HF_IMAGE_TOKEN_2`
+* `HF_IMAGE_TOKEN_3`
 * `GEMINI_MODEL_NAME` (e.g., `gemini-3.5-flash`)
-* `HF_IMAGE_TOKEN`
 * `TELEGRAM_BOT_TOKEN`
 * `TELEGRAM_CHAT_ID`
 
