@@ -24,7 +24,7 @@ from typing import Any
 
 import requests
 
-from src.config import HF_IMAGE_TOKEN, HF_IMAGE_TOKENS
+from src.config import HF_IMAGE_TOKENS
 from src.prompts import IMAGE_NEGATIVE_PROMPT, IMAGE_STYLE_CONSTRAINTS
 
 logger = logging.getLogger("telegram_micro_lesson_bot.image")
@@ -82,8 +82,6 @@ def generate_concept_image(
         RuntimeError: If all token attempts are exhausted without success.
     """
     active_tokens = list(tokens if tokens is not None else HF_IMAGE_TOKENS)
-    if not active_tokens:
-        active_tokens = [HF_IMAGE_TOKEN]
 
     prompt, negative_prompt = build_image_prompt(lesson)
     payload = {
