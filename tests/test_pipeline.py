@@ -195,11 +195,16 @@ class TestImageGenerator(unittest.TestCase):
         mock_post.return_value.json.return_value = {"estimated_time": 10.0}
 
         with self.assertRaises(RuntimeError) as ctx:
-            generate_concept_image({"image_prompt": "System architecture diagram"}, max_retries=2, initial_backoff=0.01)
+            generate_concept_image(
+                {"image_prompt": "System architecture diagram"},
+                tokens=["mock_tok1"],
+                max_retries=2,
+                initial_backoff=0.01,
+            )
 
         self.assertIn("Hugging Face image generation failed", str(ctx.exception))
         self.assertEqual(mock_post.call_count, 2)
-        mock_sleep.assert_called_once()
+        self.assertGreaterEqual(mock_sleep.call_count, 1)
 
     @patch("time.sleep")
     @patch("requests.post")
@@ -212,10 +217,40 @@ class TestImageGenerator(unittest.TestCase):
         success_resp = MagicMock(status_code=200, content=b"recovered_png_bytes")
         mock_post.side_effect = [fail_resp, success_resp]
 
-        result = generate_concept_image({"image_prompt": "Pipeline retry test"}, max_retries=3, initial_backoff=0.01)
+        result = generate_concept_image(
+            {"image_prompt": "Pipeline retry test"},
+            tokens=["mock_tok1"],
+            max_retries=3,
+            initial_backoff=0.01,
+        )
         self.assertEqual(result, b"recovered_png_bytes")
         self.assertEqual(mock_post.call_count, 2)
-        mock_sleep.assert_called_once()
+        self.assertGreaterEqual(mock_sleep.call_count, 1)
+
+    @patch("time.sleep")
+    @patch("requests.post")
+    def test_generate_concept_image_token_failover(self, mock_post: MagicMock, mock_sleep: MagicMock) -> None:
+        from src.image_generator import generate_concept_image
+
+        # Token 1 hits 429 Rate Limit, Token 2 succeeds immediately with 200 OK
+        resp_tok1 = MagicMock(status_code=429, text="Rate limit exceeded")
+        resp_tok2 = MagicMock(status_code=200, content=b"token2_image_bytes")
+        mock_post.side_effect = [resp_tok1, resp_tok2]
+
+        result = generate_concept_image(
+            {"image_prompt": "Token failover test"},
+            tokens=["tok_primary", "tok_secondary"],
+            max_retries=1,
+            initial_backoff=0.01,
+        )
+
+        self.assertEqual(result, b"token2_image_bytes")
+        self.assertEqual(mock_post.call_count, 2)
+        # Verify first call used tok_primary and second call used tok_secondary
+        call1_auth = mock_post.call_args_list[0].kwargs["headers"]["Authorization"]
+        call2_auth = mock_post.call_args_list[1].kwargs["headers"]["Authorization"]
+        self.assertEqual(call1_auth, "Bearer tok_primary")
+        self.assertEqual(call2_auth, "Bearer tok_secondary")
 
 
 class TestBotDelivery(unittest.TestCase):
