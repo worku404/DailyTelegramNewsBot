@@ -1,13 +1,20 @@
 # Runs bot.py automatically once a day, using GitHub's hosted runners.
 # bot.py is a thin shim that calls src.pipeline.main(); the orchestration and all
 # modules live in the src/ package. State advances sequentially through src/topics.py.
+# * * * * *
+# │ │ │ │ │
+# │ │ │ │ └── Day of week
+# │ │ │ └──── Month
+# │ │ └────── Day of month
+# │ └──────── Hour
+# └────────── Minute
 
 name: Daily Telegram Micro-Lesson Bot
 
 on:
   schedule:
     # GitHub Actions cron runs in UTC. 06:00 UTC daily.
-    - cron: "0 6 * * *"
+    - cron: "* * * * *"
   workflow_dispatch: {}
 
 jobs:
