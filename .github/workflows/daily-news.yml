@@ -13,7 +13,8 @@ name: Daily Telegram Micro-Lesson Bot
 
 on:
   schedule:
-    - cron: "46 5 * * *"
+    # Repeats at minute :00, :15, :30, and :45 of every hour:
+    - cron: "*/15 * * * *"
   workflow_dispatch: {}
 
 jobs:
