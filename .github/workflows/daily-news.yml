@@ -1,20 +1,11 @@
-# Runs bot.py automatically once a day, using GitHub's hosted runners.
+# Runs bot.py automatically once a day at 00:00 AM , using cron-job.orgs.
 # bot.py is a thin shim that calls src.pipeline.main(); the orchestration and all
 # modules live in the src/ package. State advances sequentially through src/topics.py.
-# * * * * *
-# │ │ │ │ │
-# │ │ │ │ └── Day of week
-# │ │ │ └──── Month
-# │ │ └────── Day of month
-# │ └──────── Hour
-# └────────── Minute
+
 
 name: Daily Telegram Micro-Lesson Bot
 
 on:
-  schedule:
-    # Repeats at minute :00, :15, :30, and :45 of every hour:
-    - cron: "*/15 * * * *"
   workflow_dispatch: {}
 
 jobs:
