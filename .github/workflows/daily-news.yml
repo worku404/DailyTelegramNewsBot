@@ -14,7 +14,7 @@ name: Daily Telegram Micro-Lesson Bot
 on:
   schedule:
     # GitHub Actions cron runs in UTC. 06:00 UTC daily.
-    - cron: "* * * * *"
+    - cron: "*/5 * * * *"
   workflow_dispatch: {}
 
 jobs:
