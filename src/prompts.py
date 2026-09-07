@@ -43,18 +43,22 @@ Output MUST satisfy these exact fields:
 - explanation: The technical core of the lesson. Explain the underlying mechanism, trade-offs, invariants, and common footguns. Format with blank lines between paragraphs and bold subtitles for all list items.
 - key_takeaway: One memorable line or mental model the reader should retain.
 - image_prompt: A visual description for an AI image generator (a diffusion model that cannot render text reliably). Describe ONE clean, abstract technical illustration for THIS concept whose meaning is carried by composition, shapes, directional arrows, and color contrast — not by written words. Text budget: the image may contain at most two short text elements of 1–2 plain words each; write those exact words in double quotes so they render literally, and prefer short, generic words that suit the concept. If the concept has no natural one- or two-word cue, request zero text. Do NOT put code, code syntax, identifiers, function or variable names, memory addresses, hex values, numbers, multi-word callouts, sentences, paragraphs, or more than two text elements in the image. Choose the visual structure that best fits this specific concept (for example a single focal object, a one-vs-many comparison, a flow, or a state change), expressed purely through geometry, arrows, and color.
+- hashtags: An array of 2 to 3 categorized technical hashtags relevant to this specific topic, each starting with # (e.g., ["#SystemDesign", "#Concurrency", "#Databases"]).
+- reference_links: An array of exactly 3 candidate reference URLs for further reading from high-authority, canonical technical documentation, official language/library specs, RFCs, or Wikipedia (e.g. ["https://docs.python.org/...", "https://en.wikipedia.org/wiki/...", "https://datatracker.ietf.org/doc/html/..."]). Prefer stable, canonical URLs that are unlikely to 404.
 """
 
 # image_prompt is an INTERNAL-ONLY field: it is authored by Gemini and consumed
 # by image_generator.py to steer the diffusion model. It is deliberately NOT
 # rendered into the Telegram message (telegram_formatter.format_lesson reads only
-# title/concept_summary/explanation/key_takeaway and ignores extra keys).
+# title/concept_summary/explanation/key_takeaway/hashtags/reference_links and ignores extra keys).
 LESSON_FIELDS = (
     "title",
     "concept_summary",
     "explanation",
     "key_takeaway",
     "image_prompt",
+    "hashtags",
+    "reference_links",
 )
 
 LESSON_SCHEMA: dict[str, Any] = {
@@ -79,6 +83,20 @@ LESSON_SCHEMA: dict[str, Any] = {
         "image_prompt": {
             "type": "STRING",
             "description": "An abstract technical illustration described via composition, shapes, arrows, and color contrast, with at most two short quoted text labels and no code, symbols, or identifiers.",
+        },
+        "hashtags": {
+            "type": "ARRAY",
+            "items": {
+                "type": "STRING",
+            },
+            "description": "2 to 3 categorized technical hashtags relevant to this topic, each starting with #.",
+        },
+        "reference_links": {
+            "type": "ARRAY",
+            "items": {
+                "type": "STRING",
+            },
+            "description": "Exactly 3 candidate reference URLs for further reading from high-authority canonical sources (e.g. Wikipedia, official documentation, RFCs).",
         },
     },
     "required": list(LESSON_FIELDS),
