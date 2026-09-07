@@ -6,16 +6,6 @@ SEED_TOPICS = [
     "Binary search invariants and the off-by-one traps",
     "When a hash map beats sorting, and when it doesn't",
 
-    # --- Python language internals (Python-specific, advanced) ---
-    "The GIL: what it actually locks and what it doesn't",
-    "Generators and lazy evaluation: memory-bounded iteration",
-    "Decorators: functions that return functions, and functools.wraps",
-    "Context managers and the with protocol (__enter__/__exit__)",
-    "Mutable default arguments: the classic footgun and why it happens",
-    "__slots__ and the memory cost of dynamic attributes",
-    "Duck typing vs. structural typing (Protocol)",
-    "Shallow vs. deep copy and reference semantics",
-
     # --- Concurrency & Async ---
     "Concurrency vs. parallelism: the distinction that matters",
     "Race conditions and why they're nondeterministic",
@@ -43,4 +33,14 @@ SEED_TOPICS = [
 
     # --- Testing ---
     "The test pyramid, and why UI-heavy testing is a trap",
+
+        # --- Python language internals (Python-specific, advanced) ---
+    "The GIL: what it actually locks and what it doesn't",
+    "Generators and lazy evaluation: memory-bounded iteration",
+    "Decorators: functions that return functions, and functools.wraps",
+    "Context managers and the with protocol (__enter__/__exit__)",
+    "Mutable default arguments: the classic footgun and why it happens",
+    "__slots__ and the memory cost of dynamic attributes",
+    "Duck typing vs. structural typing (Protocol)",
+    "Shallow vs. deep copy and reference semantics",
 ]
