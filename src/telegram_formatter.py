@@ -49,7 +49,7 @@ def format_lesson(
         data: Dictionary with 'title', 'concept_summary', 'explanation', 'key_takeaway',
               optional 'hashtags', and optional 'valid_reference_url'.
         channel_link: Markdown formatted link to append at the bottom.
-        valid_reference_url: Optional validated URL to render as '📖 [more: ](url)'.
+        valid_reference_url: Optional validated URL to render as '📖 [Learn more: ](url)'.
 
     Returns:
         A tuple of (clean_plain_text, list_of_entity_dictionaries).
@@ -89,7 +89,7 @@ def format_lesson(
 
     footer_lines: List[str] = []
     if ref_url and isinstance(ref_url, str) and ref_url.strip():
-        footer_lines.append(f"📖 [more: ]({ref_url.strip()})")
+        footer_lines.append(f"👉 [Learn more ... ]({ref_url.strip()})")
     if formatted_hashtags:
         footer_lines.append(formatted_hashtags)
     if channel_link:
