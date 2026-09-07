@@ -98,6 +98,11 @@ def _repair_lesson_fields(lesson: dict[str, Any]) -> dict[str, Any]:
                     "Repaired double-escaped sequence in lesson field '%s'.", key
                 )
                 lesson[key] = repaired
+        elif isinstance(value, list):
+            lesson[key] = [
+                _repair_double_escaping(item) if isinstance(item, str) else item
+                for item in value
+            ]
     return lesson
 
 
