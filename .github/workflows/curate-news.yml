@@ -1,0 +1,44 @@
+# Runs curate.py automatically via cron-job.org or manual dispatch.
+# Fetches multi-tier RSS feeds, evaluates candidates with Gemini, dispatches
+# review cards to the editor's private bot, and persists seen_articles.json.
+
+name: Editorial News Scout
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  curate-and-review:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run Editorial News Scout
+        env:
+          API1_KEY: ${{ secrets.API1_KEY }}
+          API2_KEY: ${{ secrets.API2_KEY }}
+          API3_KEY: ${{ secrets.API3_KEY }}
+          GEMINI_MODEL_NAME: ${{ secrets.GEMINI_MODEL_NAME || vars.GEMINI_MODEL_NAME }}
+          REVIEW_BOT_TOKEN: ${{ secrets.REVIEW_BOT_TOKEN }}
+          REVIEW_CHAT_ID: ${{ secrets.REVIEW_CHAT_ID }}
+        run: python curate.py
+
+      - name: Persist Curated News History
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add news_curator/seen_articles.json
+          git commit -m "chore: persist curated news history [skip ci]" || echo "No history changes to commit"
+          git push
