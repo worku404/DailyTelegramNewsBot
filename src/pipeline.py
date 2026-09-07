@@ -30,8 +30,9 @@ from src.config import TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
 from src.image_generator import generate_concept_image
 from src.lesson_generator import generate_lesson
 from src.prompts import PROMPT_TEMPLATE
-from src.topic_scheduler import advance_state, get_current_topic
 from src.telegram_formatter import format_lesson
+from src.topic_scheduler import advance_state, get_current_topic
+from src.url_validator import find_first_valid_url
 
 logging.basicConfig(
     level=logging.INFO,
@@ -112,6 +113,12 @@ def main() -> int:
     prompt = PROMPT_TEMPLATE.format(title=topic)
     logger.info("Requesting structured lesson from Gemini...")
     lesson_data = generate_lesson(prompt)
+
+    # Validate candidate reference links and attach the first live healthy URL
+    candidate_links = lesson_data.get("reference_links", [])
+    valid_url = find_first_valid_url(candidate_links)
+    if valid_url:
+        lesson_data["valid_reference_url"] = valid_url
 
     logger.info("Generating technical concept diagram via Hugging Face...")
     # image_prompt is internal-only: the generator consumes it, while the Telegram
