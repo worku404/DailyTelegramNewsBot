@@ -182,9 +182,9 @@ class TestTelegramFormatter(unittest.TestCase):
         }
         text, entities = format_lesson(data)
 
-        self.assertIn("📖 Learn more: ", text)
+        self.assertIn("👉 Learn more ... ", text)
         # Verify ordering: Learn more appears before hashtags
-        learn_more_idx = text.find("📖 Learn more: ")
+        learn_more_idx = text.find("👉 Learn more ... ")
         hashtags_idx = text.find("#Concurrency #OS")
         self.assertLess(learn_more_idx, hashtags_idx)
 
