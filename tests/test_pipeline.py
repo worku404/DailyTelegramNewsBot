@@ -149,6 +149,64 @@ class TestTelegramFormatter(unittest.TestCase):
 
         self.assertNotIn(internal_prompt, text)
 
+    def test_hashtags_and_channel_link_formatting(self) -> None:
+        data = {
+            "title": "B-Tree Indexing",
+            "concept_summary": "Balanced tree index for log-time lookups.",
+            "explanation": "Minimizes disk I/O operations.",
+            "key_takeaway": "Keep trees shallow and wide.",
+            "hashtags": ["#Databases", "#SystemDesign", "StorageEngines"],
+        }
+        text, entities = format_lesson(data)
+
+        self.assertIn("#Databases #SystemDesign #StorageEngines", text)
+        self.assertIn("Kernel To Cloude", text)
+        # Raw URL is hidden from plain text body
+        self.assertNotIn("https://t.me/kernel2cloud", text)
+
+        link_entities = [
+            e
+            for e in entities
+            if e["type"] == "text_link" and e.get("url") == "https://t.me/kernel2cloud"
+        ]
+        self.assertEqual(len(link_entities), 1)
+
+    def test_learn_more_link_formatting_above_hashtags(self) -> None:
+        data = {
+            "title": "Deadlock",
+            "concept_summary": "Four Coffman conditions.",
+            "explanation": "Mutual exclusion, hold and wait, no preemption, circular wait.",
+            "key_takeaway": "Break any of the four conditions to prevent deadlock.",
+            "hashtags": ["#Concurrency", "#OS"],
+            "valid_reference_url": "https://en.wikipedia.org/wiki/Deadlock_(computer_science)",
+        }
+        text, entities = format_lesson(data)
+
+        self.assertIn("📖 Learn more: ", text)
+        # Verify ordering: Learn more appears before hashtags
+        learn_more_idx = text.find("📖 Learn more: ")
+        hashtags_idx = text.find("#Concurrency #OS")
+        self.assertLess(learn_more_idx, hashtags_idx)
+
+        # Verify entity
+        learn_more_entities = [
+            e for e in entities
+            if e["type"] == "text_link" and e.get("url") == "https://en.wikipedia.org/wiki/Deadlock_(computer_science)"
+        ]
+        self.assertEqual(len(learn_more_entities), 1)
+
+    def test_learn_more_omitted_when_absent(self) -> None:
+        data = {
+            "title": "Topic",
+            "concept_summary": "Summary",
+            "explanation": "Explanation",
+            "key_takeaway": "Takeaway",
+            "hashtags": ["#Tag"],
+        }
+        text, _ = format_lesson(data)
+        self.assertNotIn("Learn more", text)
+        self.assertNotIn("📖", text)
+
 
 class TestImageGenerator(unittest.TestCase):
     """Validate Hugging Face concept image generation mechanics."""
@@ -453,6 +511,56 @@ class TestGeminiRetries(unittest.TestCase):
         self.assertEqual(mock_client_cls.call_args_list[0].kwargs["api_key"], "key1")
         self.assertEqual(mock_client_cls.call_args_list[1].kwargs["api_key"], "key2")
         mock_sleep.assert_not_called()
+
+
+class TestUrlValidator(unittest.TestCase):
+    """Validate candidate URL probing and first-valid selection."""
+
+    @patch("requests.head")
+    def test_first_valid_url_picked_immediately(self, mock_head: MagicMock) -> None:
+        from src.url_validator import find_first_valid_url
+
+        mock_head.return_value.status_code = 200
+        candidates = ["https://example.com/1", "https://example.com/2", "https://example.com/3"]
+
+        chosen = find_first_valid_url(candidates)
+        self.assertEqual(chosen, "https://example.com/1")
+        self.assertEqual(mock_head.call_count, 1)
+
+    @patch("requests.head")
+    def test_dead_link_failover_to_second(self, mock_head: MagicMock) -> None:
+        from src.url_validator import find_first_valid_url
+
+        resp_404 = MagicMock(status_code=404)
+        resp_200 = MagicMock(status_code=200)
+        mock_head.side_effect = [resp_404, resp_200]
+
+        candidates = ["https://example.com/dead", "https://example.com/live"]
+        chosen = find_first_valid_url(candidates)
+        self.assertEqual(chosen, "https://example.com/live")
+        self.assertEqual(mock_head.call_count, 2)
+
+    @patch("requests.head")
+    def test_all_links_dead_returns_none(self, mock_head: MagicMock) -> None:
+        from src.url_validator import find_first_valid_url
+
+        mock_head.return_value.status_code = 404
+        candidates = ["https://example.com/dead1", "https://example.com/dead2"]
+
+        chosen = find_first_valid_url(candidates)
+        self.assertIsNone(chosen)
+
+    @patch("requests.get")
+    @patch("requests.head")
+    def test_head_forbidden_fallback_to_get(self, mock_head: MagicMock, mock_get: MagicMock) -> None:
+        from src.url_validator import is_url_valid
+
+        mock_head.return_value.status_code = 403
+        mock_get.return_value.status_code = 200
+
+        self.assertTrue(is_url_valid("https://docs.oracle.com/something"))
+        mock_head.assert_called_once()
+        mock_get.assert_called_once()
 
 
 if __name__ == "__main__":
