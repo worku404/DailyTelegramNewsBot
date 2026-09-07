@@ -29,17 +29,27 @@ _CONFIG._markdown_symbol.heading_level_3 = ""
 _CONFIG._markdown_symbol.heading_level_4 = ""
 
 
+DEFAULT_CHANNEL_LINK = "[Kernel To Cloude](https://t.me/kernel2cloud)"
+
+
 def _to_blockquote(text: str) -> str:
     """Prefix each non-empty line of text with markdown quote syntax '>'."""
     lines = text.splitlines()
     return "\n".join(f"> {line}" if line.strip() else ">" for line in lines)
 
 
-def format_lesson(data: Dict[str, Any]) -> Tuple[str, List[Dict[str, Any]]]:
+def format_lesson(
+    data: Dict[str, Any],
+    channel_link: str = DEFAULT_CHANNEL_LINK,
+    valid_reference_url: str | None = None,
+) -> Tuple[str, List[Dict[str, Any]]]:
     """Compile structured lesson components into plain text and Telegram MessageEntity dicts.
 
     Args:
-        data: Dictionary with 'title', 'concept_summary', 'explanation', and 'key_takeaway'.
+        data: Dictionary with 'title', 'concept_summary', 'explanation', 'key_takeaway',
+              optional 'hashtags', and optional 'valid_reference_url'.
+        channel_link: Markdown formatted link to append at the bottom.
+        valid_reference_url: Optional validated URL to render as '📖 [more: ](url)'.
 
     Returns:
         A tuple of (clean_plain_text, list_of_entity_dictionaries).
@@ -48,6 +58,8 @@ def format_lesson(data: Dict[str, Any]) -> Tuple[str, List[Dict[str, Any]]]:
     raw_summary = data.get("concept_summary", "").strip()
     raw_explanation = data.get("explanation", "").strip()
     raw_takeaway = data.get("key_takeaway", "").strip()
+    raw_hashtags = data.get("hashtags")
+    ref_url = valid_reference_url or data.get("valid_reference_url")
 
     parts: List[str] = [f"**{raw_title}**"]
     if raw_summary:
@@ -56,6 +68,35 @@ def format_lesson(data: Dict[str, Any]) -> Tuple[str, List[Dict[str, Any]]]:
         parts.append(raw_explanation)
     if raw_takeaway:
         parts.append(_to_blockquote(raw_takeaway))
+
+    # Format 2-3 categorized technical hashtags
+    formatted_hashtags = ""
+    if raw_hashtags:
+        if isinstance(raw_hashtags, list):
+            tags = [
+                tag.strip() if tag.strip().startswith("#") else f"#{tag.strip()}"
+                for tag in raw_hashtags
+                if isinstance(tag, str) and tag.strip()
+            ]
+            formatted_hashtags = " ".join(tags)
+        elif isinstance(raw_hashtags, str):
+            tags = [
+                tag.strip() if tag.strip().startswith("#") else f"#{tag.strip()}"
+                for tag in raw_hashtags.split()
+                if tag.strip()
+            ]
+            formatted_hashtags = " ".join(tags)
+
+    footer_lines: List[str] = []
+    if ref_url and isinstance(ref_url, str) and ref_url.strip():
+        footer_lines.append(f"📖 [more: ]({ref_url.strip()})")
+    if formatted_hashtags:
+        footer_lines.append(formatted_hashtags)
+    if channel_link:
+        footer_lines.append(channel_link)
+
+    if footer_lines:
+        parts.append("\n\n".join(footer_lines))
 
     markdown_doc = "\n\n".join(parts)
 
