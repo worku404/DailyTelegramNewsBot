@@ -2,7 +2,25 @@
   "seen_urls": {
     "https://danluu.com/agentic-testing": "2026-09-07T16:59:36.237664+00:00",
     "https://blog.bytebytego.com/p/how-to-deal-with-errors-and-failures": "2026-09-07T16:59:36.237664+00:00",
-    "http://notes.eatonphil.com/2026-09-06-data-races-and-the-limits-of-threadsanitizer-in-c-and-go.html": "2026-09-07T16:59:36.237664+00:00"
+    "http://notes.eatonphil.com/2026-09-06-data-races-and-the-limits-of-threadsanitizer-in-c-and-go.html": "2026-09-07T16:59:36.237664+00:00",
+    "https://simonwillison.net/2026/Sep/6/research-acceleration-the-view-inside-openai": "2026-09-07T18:52:48.582151+00:00",
+    "https://simonwillison.net/2026/Sep/6/theres-no-limit-to-how-bad-code-can-get": "2026-09-07T18:52:48.582151+00:00",
+    "https://thenewstack.io/astra-reasoning-effort-cost": "2026-09-07T18:52:48.582151+00:00",
+    "https://thenewstack.io/polars-streaming-row-order": "2026-09-07T18:52:48.582151+00:00",
+    "https://simonwillison.net/2026/Sep/6/the-purpose-of-dns-is-to-spread-scams": "2026-09-07T18:52:48.582151+00:00",
+    "https://simonwillison.net/2026/Sep/6/zach-kehs": "2026-09-07T18:52:48.582151+00:00",
+    "https://simonwillison.net/2026/Sep/5/introducing-gpt-6-astra-for-developers": "2026-09-07T18:52:48.582151+00:00",
+    "https://thenewstack.io/coding-agents-tool-choice": "2026-09-07T18:52:48.582151+00:00",
+    "https://thenewstack.io/enterprise-rag-permission-assembly": "2026-09-07T18:52:48.582151+00:00",
+    "https://www.infoq.com/news/2026/09/netflix-flink-autoscaler/?utm_campaign=infoq_content&utm_source=infoq&utm_medium=feed&utm_term=global": "2026-09-07T18:52:48.582151+00:00",
+    "https://www.infoq.com/news/2026/09/cern-debian-infra/?utm_campaign=infoq_content&utm_source=infoq&utm_medium=feed&utm_term=global": "2026-09-07T18:52:48.582151+00:00",
+    "https://www.infoq.com/news/2026/09/vlt-npm-replacement/?utm_campaign=infoq_content&utm_source=infoq&utm_medium=feed&utm_term=global": "2026-09-07T18:52:48.582151+00:00",
+    "https://www.infoq.com/presentations/ai-agent-testing-evaluation/?utm_campaign=infoq_content&utm_source=infoq&utm_medium=feed&utm_term=global": "2026-09-07T18:52:48.582151+00:00",
+    "https://www.infoq.com/news/2026/09/apim-standard-v2-zone-redundancy/?utm_campaign=infoq_content&utm_source=infoq&utm_medium=feed&utm_term=global": "2026-09-07T18:52:48.582151+00:00",
+    "https://www.infoq.com/news/2026/09/java-news-roundup-aug31-2026/?utm_campaign=infoq_content&utm_source=infoq&utm_medium=feed&utm_term=global": "2026-09-07T18:52:48.582151+00:00",
+    "https://www.infoq.com/news/2026/09/google-mantis-vulnerability-scan/?utm_campaign=infoq_content&utm_source=infoq&utm_medium=feed&utm_term=global": "2026-09-07T18:52:48.582151+00:00",
+    "https://www.infoq.com/news/2026/09/figma-security-agents/?utm_campaign=infoq_content&utm_source=infoq&utm_medium=feed&utm_term=global": "2026-09-07T18:52:48.582151+00:00",
+    "https://www.infoq.com/news/2026/09/freecore-truenas-fork/?utm_campaign=infoq_content&utm_source=infoq&utm_medium=feed&utm_term=global": "2026-09-07T18:52:48.582151+00:00"
   },
-  "last_updated": "2026-09-07T16:59:36.238166+00:00"
+  "last_updated": "2026-09-07T18:52:48.582336+00:00"
 }
