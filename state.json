@@ -1,5 +1,5 @@
 {
-  "current_index": 11,
-  "last_topic_posted": "Database indexing: why a B-tree, and the read/write trade-off",
-  "last_posted_at": "2026-09-17T21:01:02.987641+00:00"
+  "current_index": 12,
+  "last_topic_posted": "The N+1 query problem and how ORMs cause it",
+  "last_posted_at": "2026-09-19T21:01:01.157511+00:00"
 }
