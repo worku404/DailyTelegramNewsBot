@@ -1,0 +1,36 @@
+name: Daily React Course Delivery
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  deliver-react-lesson:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run React course sender
+        env:
+          TEMP_11_DAY_REACT_BOT: ${{ secrets.TEMP_11_DAY_REACT_BOT }}
+          USER_CHAT_ID: ${{ secrets.USER_CHAT_ID }}
+        run: python -m react_course_sender.main
+
+      - name: Persist React Course State
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add react_course_sender/react_state.json
+          git commit -m "chore: advance react course day [skip ci]" || echo "No state changes to commit"
+          git push
