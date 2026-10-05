@@ -31,8 +31,8 @@ from src.prompts import LESSON_SCHEMA
 logger = logging.getLogger("telegram_micro_lesson_bot.llm")
 
 GEMINI_TEMPERATURE = 0.2
-MAX_ROUNDS = 2
-INITIAL_BACKOFF_SECONDS = 3.0
+MAX_ROUNDS = 3
+INITIAL_BACKOFF_SECONDS = 10.0
 
 _FENCE_OPEN = re.compile(r"^```(?:json)?\s*", re.IGNORECASE)
 _FENCE_CLOSE = re.compile(r"\s*```$")
