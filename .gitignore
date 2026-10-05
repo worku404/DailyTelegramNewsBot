@@ -6,3 +6,4 @@ venv/
 env/
 *.tmp
 *postman
+scratch/
