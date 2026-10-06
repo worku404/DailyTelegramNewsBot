@@ -19,6 +19,11 @@ GEMINI_API_KEYS: list[str] = [
     config("API1_KEY"),
     config("API2_KEY"),
     config("API3_KEY"),
+    config("API4_KEY"),
+    config("API5_KEY"),
+    config("API6_KEY"),
+    config("API7_KEY"),
+    config("API8_KEY")
 ]
 
 HF_IMAGE_TOKENS: list[str] = [
