@@ -31,6 +31,11 @@ jobs:
           API1_KEY: ${{ secrets.API1_KEY }}
           API2_KEY: ${{ secrets.API2_KEY }}
           API3_KEY: ${{ secrets.API3_KEY }}
+          API4_KEY: ${{ secrets.API4_KEY }}
+          API5_KEY: ${{ secrets.API5_KEY }}
+          API6_KEY: ${{ secrets.API6_KEY }}
+          API7_KEY: ${{ secrets.API7_KEY }}
+          API8_KEY: ${{ secrets.API8_KEY }}
           HF_IMAGE_TOKEN_1: ${{ secrets.HF_IMAGE_TOKEN_1 }}
           HF_IMAGE_TOKEN_2: ${{ secrets.HF_IMAGE_TOKEN_2 }}
           HF_IMAGE_TOKEN_3: ${{ secrets.HF_IMAGE_TOKEN_3 }}
