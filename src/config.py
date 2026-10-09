@@ -30,6 +30,7 @@ HF_IMAGE_TOKENS: list[str] = [
     config("HF_IMAGE_TOKEN_1"),
     config("HF_IMAGE_TOKEN_2"),
     config("HF_IMAGE_TOKEN_3"),
+    config("HF_IMAGE_TOKEN_4")
 ]
 
 GEMINI_MODEL_NAME: str = config("GEMINI_MODEL_NAME")
