@@ -141,7 +141,7 @@ def generate_lesson(
             logger.info("Requesting structured lesson from Gemini using %s...", key_label)
 
             try:
-                client = genai.Client(api_key=key)
+                client = genai.Client(api_key=key,  http_options=types.HttpOptions(timeout=25000),)
                 response = client.models.generate_content(
                     model=GEMINI_MODEL_NAME,
                     contents=prompt,

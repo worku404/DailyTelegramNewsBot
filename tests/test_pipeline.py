@@ -208,109 +208,6 @@ class TestTelegramFormatter(unittest.TestCase):
         self.assertNotIn("📖", text)
 
 
-class TestImageGenerator(unittest.TestCase):
-    """Validate Hugging Face concept image generation mechanics."""
-
-    @patch("requests.post")
-    def test_generate_concept_image_success(self, mock_post: MagicMock) -> None:
-        from src.image_generator import generate_concept_image
-
-        mock_post.return_value.status_code = 200
-        mock_post.return_value.content = b"fake_png_data"
-
-        lesson = {
-            "title": "Hash Tables",
-            "concept_summary": "Maps keys to values",
-            "image_prompt": "Key-value hashing pipeline with hash function block and bucket array",
-        }
-        result = generate_concept_image(lesson)
-        self.assertEqual(result, b"fake_png_data")
-
-        payload = mock_post.call_args.kwargs["json"]
-        self.assertIn(lesson["image_prompt"], payload["inputs"])
-        self.assertNotIn(lesson["title"], payload["inputs"])
-        self.assertNotIn(lesson["concept_summary"], payload["inputs"])
-        self.assertIn("minimalist", payload["inputs"])
-        self.assertIn("negative_prompt", payload["parameters"])
-        self.assertIn("photorealistic", payload["parameters"]["negative_prompt"])
-        self.assertNotIn("diagram", payload["parameters"]["negative_prompt"])
-
-    def test_build_image_prompt_fallback(self) -> None:
-        from src.image_generator import build_image_prompt
-
-        pos, neg = build_image_prompt({})
-        self.assertIn("System architecture diagram", pos)
-        self.assertIn("minimalist", pos)
-        self.assertIn("photorealistic", neg)
-
-    @patch("time.sleep")
-    @patch("requests.post")
-    def test_generate_concept_image_failure(self, mock_post: MagicMock, mock_sleep: MagicMock) -> None:
-        from src.image_generator import generate_concept_image
-
-        mock_post.return_value.status_code = 503
-        mock_post.return_value.text = "Model warming up"
-        mock_post.return_value.json.return_value = {"estimated_time": 10.0}
-
-        with self.assertRaises(RuntimeError) as ctx:
-            generate_concept_image(
-                {"image_prompt": "System architecture diagram"},
-                tokens=["mock_tok1"],
-                max_retries=2,
-                initial_backoff=0.01,
-            )
-
-        self.assertIn("Hugging Face image generation failed", str(ctx.exception))
-        self.assertEqual(mock_post.call_count, 2)
-        self.assertGreaterEqual(mock_sleep.call_count, 1)
-
-    @patch("time.sleep")
-    @patch("requests.post")
-    def test_generate_concept_image_retry_then_succeed(self, mock_post: MagicMock, mock_sleep: MagicMock) -> None:
-        from src.image_generator import generate_concept_image
-
-        # First attempt returns 503 (model warming up), second attempt succeeds with 200
-        fail_resp = MagicMock(status_code=503, text="Model warming up")
-        fail_resp.json.return_value = {"estimated_time": 12.0}
-        success_resp = MagicMock(status_code=200, content=b"recovered_png_bytes")
-        mock_post.side_effect = [fail_resp, success_resp]
-
-        result = generate_concept_image(
-            {"image_prompt": "Pipeline retry test"},
-            tokens=["mock_tok1"],
-            max_retries=3,
-            initial_backoff=0.01,
-        )
-        self.assertEqual(result, b"recovered_png_bytes")
-        self.assertEqual(mock_post.call_count, 2)
-        self.assertGreaterEqual(mock_sleep.call_count, 1)
-
-    @patch("time.sleep")
-    @patch("requests.post")
-    def test_generate_concept_image_token_failover(self, mock_post: MagicMock, mock_sleep: MagicMock) -> None:
-        from src.image_generator import generate_concept_image
-
-        # Token 1 hits 429 Rate Limit, Token 2 succeeds immediately with 200 OK
-        resp_tok1 = MagicMock(status_code=429, text="Rate limit exceeded")
-        resp_tok2 = MagicMock(status_code=200, content=b"token2_image_bytes")
-        mock_post.side_effect = [resp_tok1, resp_tok2]
-
-        result = generate_concept_image(
-            {"image_prompt": "Token failover test"},
-            tokens=["tok_primary", "tok_secondary"],
-            max_retries=1,
-            initial_backoff=0.01,
-        )
-
-        self.assertEqual(result, b"token2_image_bytes")
-        self.assertEqual(mock_post.call_count, 2)
-        # Verify first call used tok_primary and second call used tok_secondary
-        call1_auth = mock_post.call_args_list[0].kwargs["headers"]["Authorization"]
-        call2_auth = mock_post.call_args_list[1].kwargs["headers"]["Authorization"]
-        self.assertEqual(call1_auth, "Bearer tok_primary")
-        self.assertEqual(call2_auth, "Bearer tok_secondary")
-
-
 class TestBotDelivery(unittest.TestCase):
     """Validate Telegram API delivery mechanics using sendPhoto and sendMessage."""
 
@@ -335,23 +232,6 @@ class TestBotDelivery(unittest.TestCase):
             timeout=15,
         )
         self.assertNotIn("parse_mode", mock_post.call_args.kwargs["json"])
-
-    @patch("requests.post")
-    def test_successful_photo_delivery(self, mock_post: MagicMock) -> None:
-        from src.pipeline import send_telegram_photo
-
-        mock_post.return_value.ok = True
-        mock_post.return_value.json.return_value = {"ok": True, "result": {"message_id": 43}}
-
-        fake_photo = b"binary_image_stream"
-        send_telegram_photo("dummy_token", "-100123456", fake_photo)
-
-        mock_post.assert_called_once()
-        url = mock_post.call_args.args[0]
-        self.assertEqual(url, "https://api.telegram.org/botdummy_token/sendPhoto")
-        self.assertEqual(mock_post.call_args.kwargs["data"]["chat_id"], "-100123456")
-        self.assertNotIn("caption", mock_post.call_args.kwargs["data"])
-        self.assertIn("photo", mock_post.call_args.kwargs["files"])
 
     @patch("requests.post")
     def test_fail_fast_on_api_error(self, mock_post: MagicMock) -> None:

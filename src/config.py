@@ -23,17 +23,9 @@ GEMINI_API_KEYS: list[str] = [
     config("API5_KEY"),
     config("API6_KEY"),
     config("API7_KEY"),
-    config("API8_KEY")
-]
-
-HF_IMAGE_TOKENS: list[str] = [
-    config("HF_IMAGE_TOKEN_1"),
-    config("HF_IMAGE_TOKEN_2"),
-    config("HF_IMAGE_TOKEN_3"),
-    config("HF_IMAGE_TOKEN_4")
+    config("API8_KEY"),
 ]
 
 GEMINI_MODEL_NAME: str = config("GEMINI_MODEL_NAME")
 TELEGRAM_BOT_TOKEN: str = config("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID: str = config("TELEGRAM_CHAT_ID")
-
