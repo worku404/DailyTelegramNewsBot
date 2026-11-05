@@ -22,12 +22,18 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Run React course sender
+        if: ${{ secrets.TEMP_11_DAY_REACT_BOT != '' && secrets.USER_CHAT_ID != '' }}
         env:
           TEMP_11_DAY_REACT_BOT: ${{ secrets.TEMP_11_DAY_REACT_BOT }}
           USER_CHAT_ID: ${{ secrets.USER_CHAT_ID }}
         run: python -m react_course_sender.main
 
+      - name: Skip delivery when Telegram secrets are unavailable
+        if: ${{ secrets.TEMP_11_DAY_REACT_BOT == '' || secrets.USER_CHAT_ID == '' }}
+        run: echo "Skipping delivery because required Telegram secrets are not configured for this run."
+
       - name: Persist React Course State
+        if: ${{ secrets.TEMP_11_DAY_REACT_BOT != '' && secrets.USER_CHAT_ID != '' }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
