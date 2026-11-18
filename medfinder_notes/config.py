@@ -17,7 +17,7 @@ from decouple import UndefinedValueError, config
 # ==============================================================================
 
 # Maximum number of .md notes sent to Telegram per scheduled run.
-MAX_FILES_PER_RUN: int = 2
+MAX_FILES_PER_RUN: int = 1
 
 # Maximum number of .md notes Gemini may generate for a single Pull Request.
 MAX_NOTES_PER_PR: int = 4

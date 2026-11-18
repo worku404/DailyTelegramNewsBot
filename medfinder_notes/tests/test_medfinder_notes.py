@@ -304,6 +304,39 @@ class TestSenderAndCaptions(unittest.TestCase):
             with self.assertRaises(RuntimeError):
                 send_telegram_document("TOKEN", "12345", doc_path)
 
+    @patch("medfinder_notes.sender.time.sleep")
+    @patch("medfinder_notes.sender.requests.post")
+    def test_send_telegram_document_retries_on_timeout_and_429(
+        self, mock_post: MagicMock, mock_sleep: MagicMock
+    ) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            doc_path = Path(tmp) / "16-demo.md"
+            doc_path.write_text("# Demo\n", encoding="utf-8")
+
+            rate_limited = MagicMock(ok=False, status_code=429, text="Too Many Requests")
+            rate_limited.json.return_value = {"ok": False, "parameters": {"retry_after": 3}}
+            ok_resp = MagicMock(ok=True, status_code=200)
+            ok_resp.json.return_value = {"ok": True, "result": {"message_id": 99}}
+
+            mock_post.side_effect = [
+                requests.exceptions.ConnectTimeout("Connection to api.telegram.org timed out"),
+                rate_limited,
+                ok_resp,
+            ]
+
+            send_telegram_document(
+                "TOKEN",
+                "-1004379841591",
+                doc_path,
+                caption="Note #16 — Demo",
+                thread_id=404,
+                max_retries=4,
+                initial_backoff=1.0,
+            )
+            self.assertEqual(mock_post.call_count, 3)
+            self.assertEqual(mock_sleep.call_args_list[0].args, (1.0,))
+            self.assertEqual(mock_sleep.call_args_list[1].args, (3.0,))
+
 
 class TestNoteGenerator(unittest.TestCase):
     def test_sanitize_slug_and_double_escape_repair(self) -> None:
