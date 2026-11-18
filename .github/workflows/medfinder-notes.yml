@@ -1,0 +1,77 @@
+# Runs medfinder_notes automatically via cron-job.org (workflow_dispatch) or manual trigger.
+# Stage 1: Syncs newly merged PRs on worku404/MedFinder-java -> generates hybrid OOP notes via Gemini.
+# Stage 2: Sends up to MAX_FILES_PER_RUN (default 2) notes via Fresh-PR-First priority queue to Telegram.
+
+name: MedFinder OOP Study Notes Bot
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "Pipeline mode: full (sync+send), sync-only, or send-only"
+        required: false
+        default: "full"
+        type: choice
+        options:
+          - full
+          - sync-only
+          - send-only
+      pr_number:
+        description: "Optional PR number to force-analyze (leave empty for normal scheduled sync)"
+        required: false
+        default: ""
+        type: string
+
+jobs:
+  sync-and-deliver-notes:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run MedFinder Notes pipeline
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          API1_KEY: ${{ secrets.API1_KEY }}
+          API2_KEY: ${{ secrets.API2_KEY }}
+          API3_KEY: ${{ secrets.API3_KEY }}
+          API4_KEY: ${{ secrets.API4_KEY }}
+          API5_KEY: ${{ secrets.API5_KEY }}
+          API6_KEY: ${{ secrets.API6_KEY }}
+          API7_KEY: ${{ secrets.API7_KEY }}
+          API8_KEY: ${{ secrets.API8_KEY }}
+          GEMINI_MODEL_NAME: ${{ secrets.GEMINI_MODEL_NAME || vars.GEMINI_MODEL_NAME }}
+          TEMP_11_DAY_REACT_BOT: ${{ secrets.TEMP_11_DAY_REACT_BOT }}
+          USER_CHAT_ID: ${{ secrets.USER_CHAT_ID }}
+          INPUT_MODE: ${{ inputs.mode }}
+          INPUT_PR_NUMBER: ${{ inputs.pr_number }}
+        run: |
+          ARGS=""
+          if [ "$INPUT_MODE" = "sync-only" ]; then
+            ARGS="$ARGS --sync-only"
+          elif [ "$INPUT_MODE" = "send-only" ]; then
+            ARGS="$ARGS --send-only"
+          fi
+          if [ -n "$INPUT_PR_NUMBER" ]; then
+            ARGS="$ARGS --pr $INPUT_PR_NUMBER"
+          fi
+          python -m medfinder_notes.main $ARGS
+
+      - name: Persist generated notes and delivery state
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add medfinder_notes/notes medfinder_notes/state.json
+          git commit -m "chore(medfinder-notes): sync PR notes and update delivery state [skip ci]" || echo "No note or state changes to commit"
+          git push
