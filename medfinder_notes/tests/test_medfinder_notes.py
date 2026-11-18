@@ -12,9 +12,12 @@ import tempfile
 import unittest
 from unittest.mock import MagicMock, patch
 
+import requests
+
 from medfinder_notes.github_client import (
     PrFileChange,
     PullRequestInfo,
+    _get_with_retry,
     format_diff_for_prompt,
     is_eligible_pr,
     is_relevant_file,
@@ -104,6 +107,21 @@ class TestGithubClient(unittest.TestCase):
         rendered = format_diff_for_prompt(files, max_chars=400)
         self.assertLessEqual(len(rendered), 450)
         self.assertIn("diff truncated", rendered)
+
+    @patch("medfinder_notes.github_client.time.sleep")
+    @patch("medfinder_notes.github_client.requests.get")
+    def test_get_with_retry_recovers_from_ssl_and_timeout_errors(
+        self, mock_get: MagicMock, _mock_sleep: MagicMock
+    ) -> None:
+        ok_resp = MagicMock(ok=True, status_code=200)
+        mock_get.side_effect = [
+            requests.exceptions.SSLError("EOF occurred in violation of protocol"),
+            requests.exceptions.ReadTimeout("Read timed out"),
+            ok_resp,
+        ]
+        result = _get_with_retry("https://api.github.com/test", headers={}, max_retries=4, initial_backoff=0.0)
+        self.assertIs(result, ok_resp)
+        self.assertEqual(mock_get.call_count, 3)
 
 
 class TestPriorityQueueAndState(unittest.TestCase):
@@ -266,6 +284,20 @@ class TestSenderAndCaptions(unittest.TestCase):
             self.assertEqual(args[0], "https://api.telegram.org/botTOKEN/sendDocument")
             self.assertEqual(kwargs["data"], {"chat_id": "12345", "caption": "Note #15 — Demo"})
 
+            mock_post.reset_mock()
+            send_telegram_document(
+                "TOKEN", "-1004379841591", doc_path, caption="Note #15 — Demo", thread_id=404
+            )
+            args, kwargs = mock_post.call_args
+            self.assertEqual(
+                kwargs["data"],
+                {
+                    "chat_id": "-1004379841591",
+                    "caption": "Note #15 — Demo",
+                    "message_thread_id": "404",
+                },
+            )
+
             bad_resp = MagicMock(ok=False, status_code=400, text="Bad Request")
             bad_resp.json.return_value = {"ok": False}
             mock_post.return_value = bad_resp
@@ -359,7 +391,7 @@ class TestEndToEndPipeline(unittest.TestCase):
     def tearDown(self) -> None:
         self._tmp.cleanup()
 
-    @patch("medfinder_notes.main.get_telegram_credentials", return_value=("BOT_TOKEN", "CHAT_ID"))
+    @patch("medfinder_notes.main.get_telegram_credentials", return_value=("BOT_TOKEN", "CHAT_ID", 404))
     @patch("medfinder_notes.main.send_telegram_document")
     @patch("medfinder_notes.main.generate_notes_for_pr")
     @patch("medfinder_notes.main.fetch_pr_relevant_files")
