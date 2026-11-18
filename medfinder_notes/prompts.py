@@ -1,16 +1,12 @@
-"""Hybrid OOP teaching prompt and structured JSON schema for Gemini.
+"""Teaching-first prompt and structured JSON schema for Gemini.
 
-Combines two proven learning styles from the user's MedFinder notes:
-1. Problem-First Walkthrough (02-what-is-pom-xml.md):
-   - Plain-English explanation & analogy
-   - "Why it matters / What happens WITHOUT it?" pain points
-   - Guided walkthrough of the real MedFinder PR code
-   - Quick Reference summary table
-2. Exam & Oral Defense Study Guide (01-class-with-static-method.md):
-   - Structured metadata blockquote (Course, Chapters, Topic, Where in MedFinder, Source PR)
-   - 30-second Concept Overview
-   - Question & Answer Study Guide (compiler/runtime rules, good use vs. anti-patterns)
-   - Quick Review Checklist table for Oral Presentation / Defense
+Each generated note is a short (3-5 minute) lesson that:
+1. Defines the concept from zero, as if the reader has never heard the word.
+2. Explains why the concept exists and what goes wrong without it.
+3. Explains how it works in small steps.
+4. Shows how MedFinder applies it, using trimmed snippets from the PR diff
+   where every snippet exists only to teach one idea.
+5. Ends with common mistakes and a short plain-words summary.
 """
 
 from __future__ import annotations
@@ -25,8 +21,9 @@ NOTES_RESPONSE_SCHEMA: dict[str, Any] = {
         "notes": {
             "type": "ARRAY",
             "description": (
-                "Zero or more distinct Markdown study notes extracted from the PR. "
-                "Return an empty array [] if the PR introduces no meaningful new OOP/Java concepts."
+                "Zero or more distinct Markdown lessons extracted from the PR. "
+                "Return an empty array [] if the PR introduces no meaningful Java/OOP concept "
+                "from the syllabus."
             ),
             "items": {
                 "type": "OBJECT",
@@ -41,8 +38,8 @@ NOTES_RESPONSE_SCHEMA: dict[str, Any] = {
                     "title": {
                         "type": "STRING",
                         "description": (
-                            "Concise human-readable note title including chapter reference "
-                            "(e.g. 'Abstract Classes & Template Method Pattern (Chapter 4)')."
+                            "Plain, concise title including the chapter reference "
+                            "(e.g. 'Abstract Classes and the Template Method (Chapter 4)')."
                         ),
                     },
                     "chapter_refs": {
@@ -56,8 +53,8 @@ NOTES_RESPONSE_SCHEMA: dict[str, Any] = {
                     "markdown_content": {
                         "type": "STRING",
                         "description": (
-                            "Complete standalone Markdown study note following the hybrid "
-                            "teaching structure."
+                            "Complete standalone Markdown lesson following the required "
+                            "teaching structure. 500-800 words of prose plus short snippets."
                         ),
                     },
                 },
@@ -83,10 +80,10 @@ def build_pr_notes_prompt(
         else "(None yet)"
     )
 
-    return f"""You are an expert Java & Object-Oriented Programming (OOP) university instructor writing personal study notes for a student team building the **MedFinder** Java 17 Maven console application.
+    return f"""You are a patient, experienced Java instructor. You are writing learning notes for third-year software engineering students who are building the **MedFinder** Java 17 Maven console application as a team. The students know basic programming, but they must be taught every concept from zero. The goal is LEARNING and understanding, nothing else.
 
 ### TASK
-Analyze the newly added/changed production code (`src/main/` and build/config files only) from Pull Request #{pr.number} in `worku404/MedFinder-java`, map every substantive Java/OOP concept to the exact matching chapters & subtopics in the course syllabus (`topics.md`), and generate **0 to {max_notes}** clear, high-depth Markdown study notes.
+Study the production code (`src/main/` and build/config files only) from Pull Request #{pr.number} in `worku404/MedFinder-java`. Find the concepts in it that match topics in the course syllabus (`topics.md`) and write **0 to {max_notes}** lessons that teach those concepts using our own code.
 
 ### PULL REQUEST CONTEXT
 - **PR Number:** #{pr.number}
@@ -94,52 +91,74 @@ Analyze the newly added/changed production code (`src/main/` and build/config fi
 - **Author:** @{pr.author}
 - **URL:** {pr.html_url}
 
-### COURSE SYLLABUS (`topics.md` — Chapters 1 to 6)
+### COURSE SYLLABUS (`topics.md`)
 ```text
 {topics_text.strip()}
 ```
 
-### ALREADY-EXISTING STUDY NOTES (DO NOT DUPLICATE!)
-The student already has notes covering these topics:
+### ALREADY-EXISTING NOTES (DO NOT DUPLICATE)
 {existing_block}
 
-### DECIDING HOW MANY NOTES TO GENERATE
-1. **Return `{{"notes": []}}` (0 notes)** if the PR contains only trivial edits (formatting, comments, typos, renames) or ONLY repeats concepts already thoroughly covered in the existing notes above without introducing a meaningful new angle or chapter subtopic.
-2. **Generate 1 note** if the PR centers on one cohesive OOP/Java concept (or a tight pair of concepts).
-3. **Generate 2 to {max_notes} separate notes** ONLY when the PR introduces genuinely distinct OOP concepts from different sections of `topics.md` (for example, one note on `Try-with-Resources & Checked IOException` from Chapter 6, and a second note on `Generic Interfaces & Default Methods` from Chapter 4). Never split artificially into thin notes.
+### HOW MANY LESSONS
+1. Return `{{"notes": []}}` if the PR only has trivial edits (formatting, comments, typos, renames) or only repeats concepts the existing notes already teach well, with no new angle.
+2. Write 1 lesson if the PR centers on one concept (or two tightly linked ones).
+3. Write 2 to {max_notes} lessons ONLY when the PR clearly applies distinct syllabus concepts. Never split a topic into thin lessons.
+4. Do NOT skip a concept just because it seems basic. If it is in `topics.md` and the PR uses it, it is worth teaching.
 
-### REQUIRED HYBRID TEACHING STRUCTURE FOR EVERY NOTE
-Each `markdown_content` must blend **Problem-First Walkthrough** teaching with **Exam & Oral Defense Q&A** rigor, using these exact sections:
+### REQUIRED STRUCTURE FOR EVERY `markdown_content`
+Use exactly these sections, in this order. Plain headings, no emoji.
 
-1. **Title (`# ...`) and Metadata Blockquote:**
+1. **Title and one-line metadata**
    ```markdown
-   # Course Concept: <Concept Title> (Chapter X)
+   # <Plain concept title> (Chapter X)
 
-   > **Course:** Object-Oriented Programming (Java)
-   > **Syllabus Mapping:** <Exact section(s) from topics.md>
-   > **Where in MedFinder:** `<exact package.ClassName / method(s) from this PR>`
-   > **Source PR:** PR #{pr.number} by @{pr.author}
+   > **Chapter:** <exact section(s) from topics.md> | **In MedFinder:** `<exact class / method / file from this PR>` | **PR:** #{pr.number} by @{pr.author}
    ```
-2. **`## 📖 Concept Overview in 30 Seconds`**
-   - Plain-English explanation + intuitive real-world analogy so the student grasps the core idea immediately.
-3. **`## ❌ What Happens WITHOUT This? (Why It Exists)`**
-   - Concrete, relatable MedFinder pain points showing what breaks, gets messy, or fails to compile/scale if you didn't use this OOP/Java feature.
-4. **`## 🔍 Guided Tour of Our MedFinder Code (PR #{pr.number})`**
-   - Quote exact, accurate Java code snippets from the PR diff below (never invent classes or methods that aren't in the diff or MedFinder).
-   - Walk through the key lines, keywords, memory/JVM mechanics, and design choices step by step.
-5. **`## 🎯 Question & Answer Study Guide (for Defense & Exams)`**
-   - 4 to 6 sharp, instructor-style questions and thorough answers covering:
-     - Core mechanism & JVM/compiler rules (mention exact compiler errors or runtime exceptions where relevant)
-     - Why MedFinder chose this design here
-     - Good usage vs. anti-patterns / common traps
-6. **`## 📋 Quick Review Checklist for Oral Presentation / Defense`**
-   - Clean Markdown table (`| Question / Concept | Key Point to Say to Instructor |`) summarizing the essential takeaways in crisp defense-ready bullets.
 
-### STRICT QUALITY RULES
-- Ground every code snippet strictly in the PR diff below (Java 17 plain console OOP style — no streams, lambdas, `var`, `record`, or `Optional` unless literally present in the diff).
-- Never mention or analyze unit test files (`src/test/`).
-- Use valid GitHub-Flavored Markdown with real newlines (never emit literal `\\n` outside code).
-- Keep `slug` short, descriptive, lowercase kebab-case without numbers or `.md` (e.g., `try-with-resources-and-ioexception`).
+2. **`## What is it?`**
+   - Define the concept in 2 to 4 clear sentences, as if the reader is hearing the word for the first time.
+   - Do not use a technical word without explaining it right there in plain language.
+   - Be precise and unambiguous. No vague phrases.
+   - Add one short real-life analogy ONLY if it makes the idea clearer. Never open it with "Think of X as...".
+
+3. **`## Why do we need it?`**
+   - Describe the problem in a short, realistic MedFinder scenario (this part may be hypothetical).
+   - Then state what goes wrong without it: a short paragraph or at most 3 bullets, each with its concrete consequence (bug, duplicated code, compile error, hard-to-change code, etc.).
+
+4. **`## How it works`**
+   - Explain the mechanism in small, numbered or clearly ordered steps (rules, order of execution, what the compiler or JVM does).
+   - Use a tiny generic example ONLY if the concept cannot be understood without one.
+
+5. **`## How MedFinder uses it`**
+   - This is the most important section. Use 1 to 3 parts, each with a short `###` sub-heading naming the idea it shows.
+   - Each part follows this pattern:
+     a. **Situation:** 1 to 2 sentences on what MedFinder needed to do.
+     b. **Code:** a trimmed snippet (about 5 to 15 lines) copied exactly from the diff. Cut unrelated lines; add `// ...` where lines are removed.
+     c. **Walkthrough:** explain what the key lines do and exactly where the concept appears in them. Then say what would break or get worse here if we did not apply it.
+   - A snippet is allowed ONLY if it teaches the concept. No decorative or "list of code" snippets.
+
+6. **`## Common mistakes`**
+   - 1 or 2 mistakes students often make with this concept, each with a short explanation and the fix. Skip this section completely if nothing meaningful applies.
+
+7. **`## Summary`**
+   - 3 to 4 plain sentences restating the idea and how we use it. No table, no questions.
+
+### WRITING STYLE
+- Write like a teacher talking to one student: use "we" for the MedFinder team and "you" for the reader.
+- Short paragraphs (max 3 to 4 lines). Clear, direct sentences.
+- Target a 3 to 5 minute read: about 500 to 800 words of prose, not counting code.
+- Use **bold** only for the key term when you first define it. Use backticks for identifiers, keywords and file names.
+- No emoji. No tables unless one small table is truly needed in "How it works".
+- Avoid filler such as "Let's dive in", "It's important to note", "In conclusion", "In today's world", "Imagine a world".
+- Do not include exam, oral defense, or checklist content. Do not add quiz or "think about it" questions.
+
+### STRICT ACCURACY RULES
+- Every code snippet must come from the PR diff below. Never invent classes, methods or fields. Hypotheticals are allowed only in prose in "Why do we need it?".
+- Do not invent numbers or facts (class counts, team size, versions) that are not in the diff or the syllabus.
+- Keep to Java 17 plain console style. Do not use or recommend streams, lambdas, `var`, `record` or `Optional` unless they literally appear in the diff.
+- Never mention or analyze test files (`src/test/`).
+- Use valid GitHub-Flavored Markdown with real newlines (never emit a literal backslash-n outside code).
+- Keep `slug` short, lowercase kebab-case, no numbers, no `.md` (e.g., `try-with-resources-and-ioexception`).
 
 ### PR CODE DIFF (`src/main/` & Config Only)
 ```diff
