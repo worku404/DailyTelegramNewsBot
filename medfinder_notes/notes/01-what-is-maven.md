@@ -1,90 +1,74 @@
-# What is Maven (`mvn`) and Why Do We Use It?
+# What is Maven and Why Do We Use It? (Chapters 1 & 2)
 
-> **Personal Study Notes** — Kept in `notes/` (git-ignored so it doesn't affect the team repository).
+> **Chapter:** 1.1 Program Development & Problem Solving, 2.2 The Java Execution Environment & JVM Internals | **In MedFinder:** `pom.xml`, `src/main/java/medfinder/`, `target/medfinder.jar` | **Source:** MedFinder core foundation
 
----
+## What is it?
 
-## 1. What is Maven in Plain English?
+**Maven** (command: `mvn`) is a tool that builds your Java project for you. "Building" means turning the `.java` files you wrote into a program that can actually run, and Maven does every step of that from one command.
 
-In Java, code starts as human-readable `.java` source files and must be compiled into `.class` bytecode files that run on the Java Virtual Machine (JVM).
+It also manages **dependencies**. A dependency is a library written by someone else (for example, Gson, which reads and writes JSON) that your code uses. Instead of downloading these libraries by hand, you write their names and versions in one file, `pom.xml`, and Maven fetches them.
 
-When you build a real-world application like **MedFinder**:
-- You have **57 Java classes** across 9 different packages.
-- You have external libraries to download (like **Gson** for parsing AI JSON).
-- You have automated tests (**JUnit 5**) that need to be compiled and executed automatically.
-- You need to bundle everything into a single runnable `.jar` file so anyone can double-click or run `java -jar medfinder.jar`.
+Recall that Java code goes through a pipeline: `.java` source, then the compiler `javac` produces `.class` bytecode, then the JVM runs it. Maven does not replace `javac` or the JVM. It calls them in the right order, with the right settings.
 
-If you did this by hand with plain terminal commands (`javac` and `java`), you would have to type dozens of complicated commands with massive classpaths every single time you changed one line of code.
+## Why do we need it?
 
-**Apache Maven (`mvn`) is a build automation and dependency management tool for Java.** It automates compiling, downloading libraries, testing, and packaging into single, repeatable commands.
+Suppose MedFinder had no Maven, and five of us built it using only `javac` and `java` in the terminal.
 
----
+- Every compile needs a long command listing every source folder and every library `.jar` file. One typo and the build fails. Windows separates paths with `;` and Linux/macOS with `:`, so a script that works for one teammate breaks for another.
+- Each person downloads Gson and JUnit manually. If one of us has a different version, the code works on one machine and fails on another.
+- Everyone puts source files, CSV data and config files in different folders, so merging work becomes painful.
+- To produce a runnable `.jar`, we would have to package it by hand, including the libraries and a manifest file that names the main class.
 
-## 2. The 3 Main Jobs of Maven
+Maven removes all of this: one file describes the project, and one command builds it the same way for everyone.
 
-### 1. Build Automation
-Maven knows how to compile your code in the right order, copy resource files (like `medicines.csv` and `system-prompt.txt`), and produce the final `.jar` file without you ever typing `javac`.
+## How it works
 
-### 2. Dependency Management
-Instead of manually hunting down `.jar` files on the internet, downloading them, and placing them into a `lib/` folder, you just write the library name and version inside `pom.xml`. Maven automatically downloads it from the central Maven repository and links it.
-- In our project, we only use **Gson** and **JUnit 5**.
+1. Maven reads `pom.xml` (the project descriptor). It tells Maven what the project is called, which Java version it uses, and which libraries it needs.
+2. Maven downloads each required library from Maven Central (a public online library store) and adds it to the **classpath**, the list of places where Java looks for classes.
+3. Maven expects files in a fixed layout. Source code goes in `src/main/java/`, non-code files in `src/main/resources/`, and tests in `src/test/java/`. This is called **convention over configuration**: because everyone follows the same layout, you don't have to configure it.
+4. You run a **lifecycle command**. Each one performs all the steps before it as well:
+   - `mvn clean` deletes the `target/` folder (all generated output).
+   - `mvn compile` compiles `src/main/java/` into `.class` files in `target/classes/`.
+   - `mvn test` compiles and runs the tests.
+   - `mvn package` also bundles everything into a `.jar` file.
 
-### 3. Standardized Project Structure (Convention over Configuration)
-Every Maven project in the world uses the exact same folder structure:
-```
-project-root/
-├── pom.xml                 <- The project configuration file
+## How MedFinder uses it
+
+### One layout for everyone
+
+**Situation:** we need all team members to know where every kind of file lives, without discussing it.
+
+```text
+MedFinder-java/
+├── pom.xml
 └── src/
     ├── main/
-    │   ├── java/           <- All production Java code
-    │   └── resources/      <- Non-code files (CSVs, config, prompt templates)
+    │   ├── java/medfinder/      <- production Java code
+    │   └── resources/           <- seed/*.csv, ai/system-prompt.txt
     └── test/
-        └── java/           <- Unit tests
+        └── java/medfinder/      <- JUnit 5 tests
 ```
-Because of this convention, any Java developer or AI agent who opens the project immediately knows where everything lives.
 
----
+**Walkthrough:** `pom.xml` sits at the root and describes the build. Our Java code lives under `src/main/java/medfinder/`, and our CSV seed data and the AI prompt file live under `src/main/resources/`. Because Maven knows these locations, it compiles the code and copies the resources into `target/classes/` automatically. Without this agreement, we would need our own scripts to find and copy those files.
 
-## 3. What is `pom.xml`?
+### Our daily commands
 
-`POM` stands for **Project Object Model**. It is the single configuration file at the root of our project:
-- **Project Identity:**
-  - `<groupId>`: The organization/package namespace (`medfinder`)
-  - `<artifactId>`: The project name (`medfinder`)
-  - `<version>`: Version number (`1.0-SNAPSHOT`)
-- **Properties:** Sets Java version (Java 17 in our project).
-- **Dependencies (added in T02):** Lists external libraries like Gson.
-- **Build Plugins:** Configures plugins like `maven-compiler-plugin` and `maven-surefire-plugin` (which runs the tests).
+**Situation:** before we open a Pull Request, we must be sure the project builds from nothing and the tests pass.
 
----
+```text
+mvn clean test
+mvn clean package
+java -jar target/medfinder.jar
+```
 
-## 4. Everyday Maven Commands Explained
+**Walkthrough:** `mvn clean test` first deletes `target/`, then recompiles every class and runs every test. We use `clean` on purpose. If a class was renamed or deleted, its old `.class` file may still be inside `target/`, and a build without `clean` could pass using that leftover file while failing on a teammate's machine. `mvn clean package` does the same and then produces `target/medfinder.jar`, which contains our compiled classes and Gson. The last command starts the JVM, which loads the classes from that jar and runs `main` in `medfinder.Main`.
 
-You run these commands in the project root directory (where `pom.xml` is located):
+## Common mistakes
 
-| Command | What it actually does |
-|---|---|
-| `mvn clean` | Deletes the `target/` directory completely. This wipes away old compiled `.class` files so you start with a clean slate. |
-| `mvn compile` | Compiles the code inside `src/main/java/` and places the `.class` files into `target/classes/`. |
-| `mvn test` | Compiles your test classes in `src/test/java/` and runs all JUnit 5 test cases. If any test fails, the build fails and reports the error. |
-| `mvn clean test` | **The golden command for our team!** Wipes old output, recompiles everything, and runs all tests. This is what must pass before submitting a Pull Request. |
-| `mvn clean package` | Wipes old output, recompiles, runs tests, and packages the entire app into a runnable JAR file (`target/medfinder.jar`). |
-| `mvn -v` | Prints your installed Maven version, Java version, and OS info. |
+- **Committing `.jar` files into a `lib/` folder.** Declare the library in `pom.xml` instead, so every teammate gets the same version.
+- **Committing `target/`.** It contains only generated files that Maven recreates, so it belongs in `.gitignore`. Committing it bloats the repository and causes pointless merge conflicts.
+- **Putting code in the wrong folder.** Production code in `src/test/` (or test helpers in `src/main/`) breaks packaging, because Maven treats each folder differently.
 
----
+## Summary
 
-## 5. Where Does Our Project Already Mention Maven?
-
-If you haven't read all the project docs yet, here is where Maven is specifically defined in our repository:
-
-1. **`docs/03-architecture-and-folder-structure.md` (Section 2 - Technology and Build):**
-   - States: *"Build tool: Maven (single module)"*.
-   - Specifies: *"Packaging: `mvn package` produces one runnable file `target/medfinder.jar` containing Gson"*.
-   - Lists everyday commands table.
-2. **`docs/04-implementation-plan.md` (Section 3 - Planning Checklist):**
-   - Item: *"Install Java 17+, Maven and an editor; confirm `mvn -v` works"* (Assigned to everyone, due 14 Nov).
-3. **`docs/04-implementation-plan.md` & `docs/agents/AGENTS-P1-worku.md` (Tasks T01 & T02):**
-   - **T01 (Your current task):** Set up the Maven project skeleton so everyone can run `mvn clean test`.
-   - **T02 (Next task):** Add Gson and JUnit 5 to `pom.xml` and configure JAR packaging.
-4. **`README.md` (Build and Run):**
-   - Gives team members the exact command table to compile, test, and run the program.
+Maven is the tool that builds our Java project. It reads `pom.xml`, downloads libraries such as Gson and JUnit 5, compiles our code with `javac`, runs the tests and packages `target/medfinder.jar`. It relies on one agreed folder layout, so every teammate builds the same way. Before every Pull Request we run `mvn clean test`, so we know a fresh build from the current source passes.

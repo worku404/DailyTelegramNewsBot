@@ -1,114 +1,54 @@
-# Course Concept: `String` Immutability & Normalization Contracts (Chapter 2)
+# Strings and Normalization Contracts (Chapter 2.7)
 
-> **Course:** Object-Oriented Programming (Java)  
-> **Topic:** The `String` Class, Immutability, String Constant Pool, `==` vs. `.equals()` vs. `.equalsIgnoreCase()`, and Behavioral Search Contracts  
-> **Syllabus Reference:** Ch. 2.7 (Strings & Character Data: Immutability, SCP, Common String Operations)  
-> **Where in MedFinder:** `UserRepository.findByEmail(String email)`, `PharmacyRepository.findByLicence(String licenceNumber)`  
-> **Folder:** `notes/course-concepts/` (git-ignored personal study notes)
+> **Chapter:** 2.7 The String Class | **In MedFinder:** `UserRepository.findByEmail(String email)`, `PharmacyRepository.findByLicence(String licenceNumber)`, `TextSimilarity`, `CsvFile`, `PromptBuilder` | **Source:** MedFinder core foundation
 
----
+## What is it?
 
-## 📖 Concept Overview in 30 Seconds
+`String` in Java is an immutable reference type. "Immutable" means that once a `String` object is created, its characters can never change. When you call `.trim()`, `.toLowerCase()`, or `.replace(...)` on a string, Java does not modify the original — it creates and returns a **brand new** `String` object with the result applied.
 
-In Java, `String` is **not a primitive type**—it is an **immutable reference class** (`java.lang.String`).
+Because strings are immutable, the JVM maintains a **String Constant Pool (SCP)**: string literals like `"admin"` written in source code are interned — stored once in a shared pool and reused. This is safe only because no one can mutate them.
 
-- **Immutable** means once a `String` object is created in memory, its characters can **never be changed**. Methods like `.toLowerCase()`, `.trim()`, or `.replace(...)` always return a **brand-new `String` object**.
-- **Never compare Strings with `==`!** `==` checks whether two variables point to the same memory address; `.equals()` and `.equalsIgnoreCase()` compare the actual text characters.
+## Why do we need it?
 
----
+MedFinder stores email addresses and pharmacy licence numbers entered by real users through a console. Users type inconsistently: `"Alice@Example.COM"` and `"alice@example.com"` are the same person. `"AA 1234"` and `"AA1234"` are the same licence. If `findByEmail` did a straight character-by-character comparison with no normalization, the same pharmacist would fail to log in half the time depending on how they typed their email that day. The team needs an explicit, agreed **normalization contract** baked into every lookup method — not left to individual callers to remember.
 
-## 🎯 Question & Answer Study Guide (for Defense & Exams)
+## How it works
 
-### Question 1: Why must you NEVER use `==` to compare two `String` values in Java?
+1. `String` variables store a reference (a heap address), not the characters themselves. Two different `String` objects can hold identical characters but live at different memory addresses.
+2. `==` compares addresses — it asks "are these the same object in memory?" For strings, that is almost always the wrong question.
+3. `.equals(String other)` compares the actual characters, one by one. `.equalsIgnoreCase(String other)` does the same but treats uppercase and lowercase as identical.
+4. Every transformation method returns a new `String`. The original is unaffected. If you don't assign the result, the transformation is lost.
+5. When building a `String` inside a loop (like `PromptBuilder` assembling an AI prompt), use `StringBuilder`. Concatenating with `+` inside a loop creates a new `String` object on every iteration — O(n²) object allocations. `StringBuilder.append(...)` modifies a single internal buffer — O(n).
 
-**Answer:**
-Because `String` is a **reference type** (**Ch. 2.7 & Ch. 3.1**):
-- **`a == b`** compares **memory addresses** (do `a` and `b` refer to the exact same object in memory?).
-- **`a.equals(b)`** compares **character contents** (do `a` and `b` spell the exact same text?).
+## How MedFinder uses it
+
+**Situation:** `UserRepository.findByEmail(String email)` needs to match the stored email against user input regardless of how the user capitalized it.
 
 ```java
-String fromCsv = new String("admin@medfinder.et");
-String typedByUser = "admin@medfinder.et";
-
-System.out.println(fromCsv == typedByUser);               // FALSE! Different objects on Heap vs. SCP
-System.out.println(fromCsv.equals(typedByUser));          // TRUE! Same characters
-System.out.println(fromCsv.equalsIgnoreCase("ADMIN@MEDFINDER.ET")); // TRUE! Ignores case
+// Case-insensitive email:
+if (user.getEmail().equalsIgnoreCase(email.trim())) { return user; }
 ```
 
----
+**Walkthrough:** `email.trim()` returns a new `String` with leading and trailing whitespace stripped — the kind of whitespace that sneaks in when a user copies and pastes their email. `.equalsIgnoreCase(...)` then compares characters case-insensitively: `"Alice@Example.COM"` matches `"alice@example.com"` without either string being mutated. Note that `.equalsIgnoreCase` is called on `user.getEmail()` (the stored value), not on `email` (the input), which avoids a `NullPointerException` if the input is null.
 
-### Question 2: What is the String Constant Pool (SCP) and why is `String` immutable?
-
-**Answer:**
-According to **Ch. 2.7**:
-- **String Constant Pool (SCP):** A special area of heap memory where Java stores string literals (like `"Pending"` or `"admin@medfinder.et"`). If two parts of your program use the same literal, Java reuses the single pooled copy (**memory deduplication**).
-- **Why Immutability Matters:** Because multiple variables can safely share the same `String` object in the SCP, changing one variable's string could corrupt another if strings were mutable. Immutability guarantees thread-safety, security (e.g., emails, file paths, licence numbers cannot be silently altered after validation), and safe sharing.
-
----
-
-### Question 3: Explain the two different String search rules in your Task T06 repository interfaces.
-
-**Answer:**
-Even though interfaces contain no implementation code, their Javadoc specifies exact **String normalization contracts** that every implementing class must obey:
-
-1. **`UserRepository.findByEmail(String email)`** — *"ignoring upper/lower case"*:
-   - If a user registered as `"Worku@MedFinder.et"` and logs in typing `"worku@medfinder.et"`, they must match!
-   - Implementation uses **Ch. 2.7**: `user.getEmail().equalsIgnoreCase(email.trim())`.
-
-2. **`PharmacyRepository.findByLicence(String licenceNumber)`** — *"ignoring upper/lower case and spaces"*:
-   - Real-world Ethiopian pharmacy licences may be typed with or without spaces or different casing (e.g., `"AA-102 45"` vs. `"aa-10245"`).
-   - If we didn't ignore spaces and case, a pharmacist could accidentally register the same licence twice!
-   - Implementation normalizes both strings using **Ch. 2.7** operations before comparing:
-     ```java
-     String normalizedTarget = licenceNumber.replace(" ", "").toLowerCase();
-     String normalizedStored = pharmacy.getLicenceNumber().replace(" ", "").toLowerCase();
-     if (normalizedStored.equals(normalizedTarget)) {
-         return pharmacy;
-     }
-     ```
-   - Notice: `.replace(" ", "")` does **not** alter the original `licenceNumber` string—because `String` is immutable, it creates and returns a new normalized string!
-
----
-
-### Question 4: Why does `String` immutability matter when joining many strings in a loop (like in `CsvFile`)?
-
-**Answer:**
-Because `String` is immutable (**Ch. 2.7**):
-- Writing `result = result + column + ",";` inside a loop allocates a brand-new `String` object on every iteration, copying all previous characters again and again ($O(n^2)$ memory churn).
-- That is why MedFinder uses **`StringBuilder`** (a mutable character buffer, **Ch. 2.7**) inside `CsvFile` and `PromptBuilder` when assembling lines from many pieces, then converts it once via `.toString()`.
-
----
-
-### Question 5: Concrete Code Examples from MedFinder (`UserRepository.java` & `PharmacyRepository.java`)
+**Situation:** `PharmacyRepository.findByLicence(String licenceNumber)` must match licence numbers whether or not the user typed spaces, since `"AA 1234"` and `"AA1234"` are the same licence.
 
 ```java
-// In UserRepository.java:
-/**
- * Finds a user by e-mail address, ignoring upper/lower case.
- *
- * @param email the e-mail address to look for
- * @return the user, or null if there is none with that e-mail
- */
-User findByEmail(String email);
-
-// In PharmacyRepository.java:
-/**
- * Finds a pharmacy by licence number, ignoring upper/lower case and spaces.
- *
- * @param licenceNumber the licence number to look for
- * @return the pharmacy, or null if no pharmacy has that licence
- */
-Pharmacy findByLicence(String licenceNumber);
+// Licence normalization (remove spaces + lowercase):
+String normalizedTarget = licenceNumber.replace(" ", "").toLowerCase();
+String normalizedStored = pharmacy.getLicenceNumber().replace(" ", "").toLowerCase();
+if (normalizedStored.equals(normalizedTarget)) { return pharmacy; }
 ```
 
----
+**Walkthrough:** `.replace(" ", "")` returns a new `String` with all space characters removed. `.toLowerCase()` returns another new `String` with all characters lowercased. Both are chained and their results assigned to new variables — the original `licenceNumber` and `pharmacy.getLicenceNumber()` are completely untouched. Both sides are normalized the same way before `.equals()` compares them, so the comparison is fair regardless of how either was typed or stored.
 
-## 📋 Quick Review Checklist for Oral Presentation / Defense
+## Common mistakes
 
-| Concept | Key Point to Say to Instructor |
-|---|---|
-| **Is `String` primitive or reference?** | Reference class (`java.lang.String`), immutable by design (**Ch. 2.7**). |
-| **Why `.equals()` instead of `==`?** | `==` compares memory addresses; `.equals()` / `.equalsIgnoreCase()` compare actual text characters (**Ch. 2.7**). |
-| **What does immutability mean?** | Methods like `.toLowerCase()` or `.replace()` never mutate the original `String`; they return a new `String` object. |
-| **How does `findByEmail` match?** | Case-insensitively (`equalsIgnoreCase`). |
-| **How does `findByLicence` match?** | Ignores both case and spaces so `"AA 123"` and `"aa123"` are recognized as the same licence. |
+- **Calling a transformation and discarding the result** — writing `licenceNumber.toLowerCase();` on its own line does nothing. The returned string is immediately garbage-collected. You must assign it: `licenceNumber = licenceNumber.toLowerCase();`.
+- **Using `==` to compare strings** — `"hello" == new String("hello")` is `false` because they are different objects. Always use `.equals()` or `.equalsIgnoreCase()` for content comparison.
+- **Calling `.equals()` on a potentially null string** — `email.equals(storedEmail)` throws `NullPointerException` if `email` is null. Put the known non-null value on the left: `storedEmail.equals(email)`, or use `Objects.equals(email, storedEmail)`.
+- **Concatenating with `+` inside a loop** — building a prompt by doing `result = result + line` in a loop creates a new `String` object on every iteration. Use `StringBuilder` and call `.append(line)` instead.
+
+## Summary
+
+`String` immutability is not just a trivia fact — it shapes every lookup in MedFinder. Because strings can never be mutated, every normalization step (`trim`, `toLowerCase`, `replace`) must be explicitly captured in a new variable. `UserRepository.findByEmail` applies `.equalsIgnoreCase()` to absorb case variation, while `PharmacyRepository.findByLicence` strips spaces and lowercases both sides before comparing — these are deliberate normalization contracts, not afterthoughts. `PromptBuilder` and `CsvFile` use `StringBuilder` wherever strings are assembled iteratively, keeping performance linear. The rule across all of MedFinder: never use `==` on strings, never discard a transformation result, and always normalize both sides of a lookup the same way.

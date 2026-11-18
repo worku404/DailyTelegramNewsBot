@@ -1,130 +1,60 @@
-# Course Concept: Abstraction, Interfaces & Loose Coupling (Chapters 1, 4 & 5)
+# Abstraction, Interfaces, and Loose Coupling (Chapters 1, 4 & 5)
 
-> **Course:** Object-Oriented Programming (Java)  
-> **Topic:** Abstraction, Interface Contracts (`public interface`), Implicit Modifiers, Low Coupling, and Open-Closed Principle (OCP)  
-> **Syllabus Reference:** Ch. 1.3 (High Cohesion vs. Tight Coupling), Ch. 1.4 (Abstraction: Separating Interface from Implementation), Ch. 4.6 (Interfaces & Contract Architecture), Ch. 5.1–5.2 (Polymorphism & OCP)  
-> **Where in MedFinder:** `UserRepository`, `PharmacyRepository`, `MedicineRepository`, `StockRepository`, `LocalityRepository`  
-> **Folder:** `notes/course-concepts/` (git-ignored personal study notes)
+> **Chapter:** 1.3 Software Architecture — High Cohesion vs. Tight Coupling, 1.4 Abstraction, 4.6 Interfaces, 5.1–5.2 Polymorphism & Dynamic Dispatch | **In MedFinder:** `medfinder.repository.UserRepository`, `PharmacyRepository`, `MedicineRepository`, `StockRepository`, `LocalityRepository` | **Source:** MedFinder core foundation
 
----
+## What is it?
 
-## 📖 Concept Overview in 30 Seconds
+A Java **interface** is a contract that says *what* a class must be able to do, without saying *how* it does it. It lists method signatures — names, parameters, and return types — but contains no implementation. Any class that declares `implements UserRepository` is promising to provide a real body for every method the interface lists.
 
-An **interface** in Java is a **pure contract**: it specifies **WHAT** operations an object must support, without saying **HOW** those operations are implemented internally.
+The key idea is that the rest of the application talks to the contract, not to any specific implementation. `AuthService` knows about `UserRepository`. It doesn't know — and doesn't care — whether users are stored in CSV files, a database, or memory. That detail is hidden behind the interface.
 
-- You declare it with `public interface Name { ... }`.
-- Traditional interface methods have **no body** (they end with `;` instead of `{ ... }`) and are **implicitly `public abstract`**.
-- **Golden Rule of OOP Architecture:** *Program to an interface, not to an implementation.* Services depend on `UserRepository` (the contract), NOT `FileUserRepository` (the CSV file details).
+## Why do we need it?
 
----
+Suppose `AuthService` was written to call `FileUserRepository` directly. Now imagine the team decides to swap CSV storage for a database halfway through the project. Every single method call in `AuthService` that touches `FileUserRepository` has to be found and changed. And if another service also imported `FileUserRepository`, that class changes too. And the tests that set up a real file on disk just to test a login — they all break.
 
-## 🎯 Question & Answer Study Guide (for Defense & Exams)
+With an interface, `AuthService` only knows `UserRepository`. Swapping `FileUserRepository` for `DatabaseUserRepository` means changing one line in `AppContext` — the place that wires everything together. Nothing else in the codebase touches it.
 
-### Question 1: Why do MedFinder's services depend on `UserRepository` (an interface) instead of `FileUserRepository` (a concrete class)?
+## How it works
 
-**Answer:**
-This is **Abstraction (Ch. 1.4)** and **Loose Coupling (Ch. 1.3)** in action:
-1. **Replaceable Storage (Open-Closed Principle — Ch. 5.2):** Right now, MedFinder saves users in a CSV file (`FileUserRepository`). Tomorrow, if we upgrade to a SQL database (`SqlUserRepository`), we just write a new class that `implements UserRepository` and wire it in `AppContext`. **Zero lines of code change inside `AuthService` or any menu!**
-2. **Easy Testing with Substitutes:** During automated tests, we can pass a lightweight fake/in-memory implementation of `UserRepository` instead of touching real files on disk.
-3. **Parallel Teamwork:** Because P1 published the 5 repository interfaces on 15 Nov (Task T06), P3 Wubet could immediately write `AuthService` against `UserRepository` *before* the CSV file code even existed!
+1. An interface declares method signatures. Every method in an interface is implicitly `public` and `abstract` — you don't write those keywords, but they're there.
+2. You cannot instantiate an interface directly. `new UserRepository()` is a compile error. You can only instantiate a class that implements it.
+3. A class can implement multiple interfaces (e.g., `implements UserRepository, Serializable`), but can only extend one class. This is why interfaces are the preferred way to define behavioral contracts.
+4. When a service calls a method through an interface reference, Java uses **Dynamic Method Dispatch** (also called Late Binding): the actual method that runs is determined at runtime by the real type of the object, not the type of the reference. The service doesn't know which implementation is running — and that's the point.
+5. `AppContext` is the one place that knows the concrete type. It creates `FileUserRepository` and assigns it to a `UserRepository` variable, then hands that variable to every service that needs it.
 
-```
-          ┌───────────────────────────────┐
-          │       AuthService (P3)        │
-          │  (only knows the interface!)  │
-          └───────────────┬───────────────┘
-                          │ depends on
-                          ▼
-          ┌───────────────────────────────┐
-          │  «interface» UserRepository   │  <-- Fixed contract (T06)
-          └───────────────▲───────────────┘
-                          │ implements
-            ┌─────────────┴─────────────┐
-            │                           │
-┌───────────────────────┐   ┌───────────────────────┐
-│  FileUserRepository   │   │   SqlUserRepository   │
-│  (CSV file storage)   │   │  (Future DB storage)  │
-└───────────────────────┘   └───────────────────────┘
-```
+## How MedFinder uses it
 
----
-
-### Question 2: Why don't we write `public abstract` in front of methods inside an interface?
-
-**Answer:**
-In Java (**Ch. 4.6 — Traditional Interface Members**):
-- Every normal method inside an interface is **automatically (implicitly) `public abstract`**.
-- Writing:
-  ```java
-  User findById(int id);
-  ```
-  is 100% identical to writing:
-  ```java
-  public abstract User findById(int id);
-  ```
-- Leaving out redundant `public abstract` keywords keeps interfaces clean, concise, and idiomatic Java.
-- Similarly, any field declared inside an interface is implicitly `public static final` (a constant).
-
----
-
-### Question 3: Can you instantiate an interface using `new UserRepository()`? Why or why not?
-
-**Answer:**
-**No!** Writing `new UserRepository()` causes a compile-time error.
-- An interface has no constructor, no instance fields, and no method bodies—it is only a blueprint of *promises*.
-- However, you **can** declare a variable whose **reference type** is the interface, pointing to an instance of a concrete class that implements it (**Ch. 5.1 — Polymorphic References**):
-  ```java
-  // Valid! Polymorphic reference:
-  UserRepository repo = new FileUserRepository(path, csvFile);
-  ```
-- At runtime, when you call `repo.findById(1)`, Java uses **Dynamic Method Dispatch (Late Binding, Ch. 5.1)** to execute `FileUserRepository`'s version of `findById`.
-
----
-
-### Question 4: How is an Interface different from an Abstract Class (Ch. 4.5 vs. Ch. 4.6)?
-
-**Answer:**
-
-| Feature | Abstract Class (`abstract class`) | Interface (`interface`) |
-|---|---|---|
-| **Purpose** | Shares common code & state among closely related classes ("IS-A" hierarchy, e.g., `Menu` → `StartMenu`, `User` → `Pharmacist`). | Defines a capability or contract ("CAN-DO" / role, e.g., `UserRepository`, `RowMapper<T>`). |
-| **Instance Fields / State** | Yes (can hold `private`/`protected` fields). | No instance fields (only `public static final` constants). |
-| **Constructors** | Yes (called via `super(...)`). | No constructors. |
-| **Multiple Inheritance** | A class can `extends` only **one** superclass. | A class can `implements` **many** interfaces (e.g., `FileUserRepository implements UserRepository, RowMapper<User>`). |
-
----
-
-### Question 5: Concrete Code Example from MedFinder (`UserRepository.java`)
+**Situation:** `AuthService` needs to look up users. It shouldn't know whether users are stored in a CSV file, a database, or anywhere else. We need to define what `AuthService` can ask for, without locking it to any storage technology.
 
 ```java
-package medfinder.repository;
-
-import java.util.List;
-import medfinder.model.User;
-
 public interface UserRepository {
-
-    // All five methods are implicitly "public abstract" — no { } body!
     User findById(int id);
-
     User findByEmail(String email);
-
     List<User> findAll();
-
     void save(User user);
-
     int nextId();
 }
+
+// In AppContext:
+UserRepository repo = new FileUserRepository(path, csvFile);
+// AuthService only knows UserRepository — not FileUserRepository!
 ```
 
----
+**Walkthrough:** The interface lists five method signatures. There are no method bodies, no fields, no `private` members — just a promise. `FileUserRepository` is the class that fulfills that promise by reading and writing CSV files. In `AppContext`, `new FileUserRepository(...)` creates the real object, but it's immediately assigned to a `UserRepository` variable. When that variable is handed to `AuthService`, the service has no way to call any CSV-specific method — it only sees the five methods the interface guarantees. The dependency flows like this:
 
-## 📋 Quick Review Checklist for Oral Presentation / Defense
+```
+AuthService → UserRepository (interface) ← FileUserRepository
+```
 
-| Concept | Key Point to Say to Instructor |
-|---|---|
-| **What is an interface?** | A contract defining *what* operations exist without exposing *how* they are implemented (**Ch. 1.4, 4.6**). |
-| **Why do services take `UserRepository` instead of `FileUserRepository`?** | Loose coupling (**Ch. 1.3**) and Open-Closed Principle (**Ch. 5.2**): storage can switch from CSV to a database without touching any service or menu. |
-| **What modifiers are implicit on interface methods?** | `public` and `abstract` (**Ch. 4.6**). |
-| **Can you do `new UserRepository()`?** | No, interfaces cannot be instantiated directly; you hold a polymorphic interface reference pointing to an implementing class (**Ch. 5.1**). |
-| **How did T06 help the team?** | Publishing interfaces early unblocked P3 (`AuthService`) and P5 (`FileXRepository`) to work in parallel. |
+`AuthService` depends on the abstraction. `FileUserRepository` also depends on the abstraction (by implementing it). Neither depends on the other directly. This is the Dependency Inversion Principle: high-level classes (`AuthService`) don't depend on low-level details (`FileUserRepository`).
+
+## Common mistakes
+
+- **Depending on `FileUserRepository` directly** in a service class. This defeats the entire point of the interface and makes the service impossible to test without real files on disk.
+- **Downcasting back to the concrete class.** Writing `((FileUserRepository) repo).readCsvLine()` inside a service breaks the abstraction. If you need that method, it belongs in the interface or the service is in the wrong layer.
+- **Putting fields or state in an interface.** Interfaces define behavior, not data. Fields in an interface are implicitly `public static final` — they're constants, not instance state. If you need shared state, that belongs in an abstract class.
+- **One giant interface.** If `UserRepository` had 20 methods, most implementations would be forced to stub out methods they don't use. Interfaces should be narrow and focused on one behavioral role.
+
+## Summary
+
+MedFinder's five repository interfaces — `UserRepository`, `PharmacyRepository`, `MedicineRepository`, `StockRepository`, and `LocalityRepository` — define what the service layer can ask for without saying anything about how that data is stored. `AppContext` is the only place that creates `FileUserRepository` objects and wires them in. Every service receives an interface reference and uses Dynamic Method Dispatch to call whichever concrete implementation was provided at startup. This design means the storage layer can be replaced, tested with fakes, or extended with a new implementation by changing one place in `AppContext`, leaving every service untouched.

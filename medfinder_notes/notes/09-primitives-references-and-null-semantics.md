@@ -1,120 +1,72 @@
-# Course Concept: Primitive vs. Reference Types & `null` Semantics (Chapters 2 & 3)
+# Primitive Types, Reference Types, and `null` (Chapters 2 & 3)
 
-> **Course:** Object-Oriented Programming (Java)  
-> **Topic:** Primitive Data Types, Reference Types, `null` References, Method Signatures (`void` vs. Return Types), and Descriptive Parameter Naming  
-> **Syllabus Reference:** Ch. 2.3 (Primitive vs. Reference Types, Identifiers), Ch. 3.1 (Object References vs. Instances & `null`), Ch. 3.6 (Method Signatures & Return Types)  
-> **Where in MedFinder:** `UserRepository.java`, `PharmacyRepository.java`, `MedicineRepository.java`  
-> **Folder:** `notes/course-concepts/` (git-ignored personal study notes)
+> **Chapter:** 2.3 Java Syntax & Program Structure (Primitive vs. Reference Types), 3.1 Class Anatomy & Object Lifecycle (`null` References), 3.3 Parameter Passing Architecture | **In MedFinder:** `medfinder.repository.UserRepository`, `PharmacyRepository`, `MedicineRepository` | **Source:** MedFinder core foundation
 
----
+## What is it?
 
-## 📖 Concept Overview in 30 Seconds
+In Java, every variable holds one of two kinds of data: a **primitive type** or a **reference type**. A primitive type (`int`, `double`, `boolean`, `char`, `long`, and three smaller integer/decimal types) stores the raw value directly inside the variable itself.
 
-Every variable, parameter, and return type in Java falls into one of two categories:
+A reference type (any class, interface, or array, such as `User`, `Pharmacy`, `String`, or `List<User>`) does not store the object directly inside the variable. Instead, it stores a **reference** — a memory address pointing to where the actual object lives in the JVM's **Heap** (the shared memory area where `new` creates objects).
 
-1. **Primitive Types** (`int`, `double`, `boolean`, `long`, `char`, etc.): Store the **actual raw value directly** in memory. They can **never** be `null`.
-2. **Reference Types** (`User`, `Pharmacy`, `String`, `List<User>`, arrays): Store a **memory address (pointer)** referring to an object living on the **Heap**. A reference variable **can** hold `null`, meaning *"points to no object"*.
+Because a reference is just an address, it can also be empty. In Java, that empty address is written `null`, which means "this variable currently points to no object at all." A primitive variable can never be `null`; it always holds a real value such as `0` or `false`.
 
----
+## Why do we need it?
 
-## 🎯 Question & Answer Study Guide (for Defense & Exams)
+Suppose a pharmacist logs in to MedFinder and our code looks up their pharmacy using `pharmacyRepo.findByOwner(userId)`, or a new user registers and we check `userRepo.findByEmail(email)`. Sometimes a matching record exists, and sometimes it does not.
 
-### Question 1: Compare the primitive and reference types used in `UserRepository.java`.
+If we did not understand how primitives, references, and `null` behave, three bugs would show up immediately:
 
-**Answer:**
-Look at the method signatures in `UserRepository.java`:
+- **Unexpected crashes (`NullPointerException`):** calling `pharmacy.getName()` when `findByOwner` returned `null` crashes the program at runtime because there is no object at that address to call a method on.
+- **Misusing exceptions for normal checks:** if `findByEmail` threw an exception whenever an email was missing, registering a new user would trigger an error on the normal, expected path where the email is still available.
+- **Confusing parameter changes:** assuming Java passes objects "by reference" leads to bugs when a method reassigns a parameter variable and expects the caller's variable to change.
 
-```java
-User findById(int id);       // Parameter: primitive int  | Return: reference User (or null)
-User findByEmail(String email); // Parameter: reference String | Return: reference User (or null)
-void save(User user);        // Parameter: reference User | Return: void (nothing)
-int nextId();                // Parameter: none           | Return: primitive int (never null!)
-```
+## How it works
 
-- **`int id` and `int nextId()` (Primitives — Ch. 2.3):** A 32-bit integer value stored directly on the stack. `nextId()` is guaranteed to return a real number (like `1`, `2`, `3`); it can never return `null`.
-- **`User` and `String` (References — Ch. 3.1):** Variables pointing to objects on the heap. Because `User` is a reference type, `findById(int id)` is legally allowed to return `null` if no matching user exists.
-- **`void` (No Return Value — Ch. 3.6):** Used on `save(User user)` because saving is a command/action, not a query that computes an answer.
+1. **Where values live in memory.** Local primitive variables like `int id = 7;` live directly in the method's **Stack frame** (the temporary workspace for that method call). For a reference variable like `Pharmacy p = new Pharmacy(...);`, the `Pharmacy` object lives on the Heap, while `p` in the Stack frame stores only the address of that object.
+2. **How Java passes arguments (strictly pass-by-value).** Whenever you call a method, Java copies what is inside the caller's variable into the method's parameter. For a primitive `int`, it copies the number, so changing the parameter never changes the caller's number. For a reference `Pharmacy`, it copies the address — both variables point to the same Heap object, so calling mutator methods on that object affects it, but reassigning `p = null;` inside the method does not change the caller's variable.
+3. **What happens when you dereference `null`.** Using the dot operator (`.`) on a reference tells the JVM to follow the address to the Heap object and read a field or run a method. If that reference is `null`, there is nothing to follow, and the JVM immediately throws a `NullPointerException`.
+4. **Choosing the right return type for absence.** A method returning primitive `int` (like `nextId()`) guarantees at compile time that a real number is always returned. A single-entity lookup (like `findById`) returns a reference type that may be `null` when nothing matches. A collection lookup (like `findAll`) returns an empty `List`, never `null`, so loops stay safe.
 
----
+## How MedFinder uses it
 
-### Question 2: Why does `findById(int id)` return `null` instead of throwing a `NotFoundException`?
+### Primitive inputs and nullable reference outputs
 
-**Answer:**
-This is a deliberate design distinction between **normal lookup outcomes** and **exceptional errors** (**Ch. 3.1 & Ch. 6.1**):
-- Asking *"Does a user with email `abc@example.com` exist?"* has two completely normal answers: **Yes (here is the `User`)** or **No (`null`)**.
-- Consider registration vs. login:
-  - During **login**, `findByEmail` returning `null` means invalid credentials.
-  - During **registration**, `findByEmail` returning `null` is actually **good news**—it means the email is available and not taken!
-- If the repository threw `NotFoundException`, registration would have to catch an exception just to confirm an email is free (an anti-pattern in **Ch. 6.6: flow-control via exceptions**).
-- Therefore, repositories return `null`, and the **Service layer** decides whether `null` is acceptable or should become a `NotFoundException`.
-
----
-
-### Question 3: What happens if a caller forgets to check for `null`?
-
-**Answer:**
-If a method returns `null` and the caller immediately tries to call a method on it using the dot operator (`.`):
-```java
-User u = userRepo.findById(999); // returns null
-String name = u.getFullName();   // CRASH! NullPointerException
-```
-The JVM throws an unchecked **`NullPointerException`** (**Ch. 6.3**), because you tried to follow a reference pointing to nothing.
-
-That is why MedFinder enforces two clear conventions:
-1. Javadoc **explicitly warns callers**: `@return the user, or null if there is none with that id`.
-2. Callers always guard single-entity lookups with `if (u == null) { ... }`.
-
----
-
-### Question 4: Why does `PharmacyRepository` distinguish `findById(int id)` vs. `findByOwner(int ownerUserId)`?
-
-**Answer:**
-Both methods accept a primitive `int` (**Ch. 2.3**), so the compiler sees both parameters as identical integers:
-```java
-Pharmacy findById(int id);
-Pharmacy findByOwner(int ownerUserId);
-```
-1. **Different Method Names:** In Java (**Ch. 3.6**), two methods in the same interface cannot have the same name and the exact same parameter type list (`findById(int)` and `findById(int)` would not compile).
-2. **Self-Documenting Identifiers (Ch. 2.3):** Naming the parameter `ownerUserId` clarifies *whose* ID must be passed (the pharmacist's `User` ID, not the `Pharmacy` ID).
-3. **Domain Rule Reflected in Return Type:** Because each pharmacist owns **at most one pharmacy** (SRS), `findByOwner` returns a single `Pharmacy` (or `null`), rather than a `List<Pharmacy>`.
-
----
-
-### Question 5: Concrete Code Example from MedFinder (`PharmacyRepository.java`)
+**Situation:** our `PharmacyRepository` needs methods to look up one pharmacy, generate the next numeric ID, and save changes.
 
 ```java
 public interface PharmacyRepository {
-
-    // Primitive int input -> Reference Pharmacy output (or null if missing)
+    // ...
     Pharmacy findById(int id);
 
-    // Clear identifier tells caller to pass the User ID, not Pharmacy ID
     Pharmacy findByOwner(int ownerUserId);
 
-    // Action method returning nothing (void)
     void save(Pharmacy pharmacy);
 
-    // Always returns a primitive integer >= 1 (cannot be null)
     int nextId();
 }
 ```
 
-**How a Service safely handles the `null` contract:**
+**Walkthrough:** `id` and `ownerUserId` are primitive `int` values, so callers cannot accidentally pass `null` as an ID. Likewise, `nextId()` returns primitive `int`, which guarantees a usable number every time. Both `findById` and `findByOwner` return the reference type `Pharmacy`, which holds either the matching object or `null` if no record exists. Without clear return contracts here, every service calling the repository would have to guess whether an ID could be `null` or whether a missing pharmacy throws an exception.
+
+### Guarding a nullable reference in the service layer
+
+**Situation:** when a logged-in pharmacist opens their pharmacy profile, the service must check whether `findByOwner` actually found a pharmacy before using it.
+
 ```java
 Pharmacy pharmacy = pharmacyRepo.findByOwner(currentUserId);
 if (pharmacy == null) {
     throw new NotFoundException("You have not registered a pharmacy yet.");
 }
+// Safe to call methods on pharmacy below this check
 ```
 
----
+**Walkthrough:** `findByOwner` returns `null` as a normal lookup answer because not having a pharmacy yet is not a storage failure. The service layer inspects `pharmacy == null` right away and decides what absence means in this context: here it raises a clear `NotFoundException`. If we skipped that `if` check and called `pharmacy.getStatus()` directly, the console app would crash with an unhelpful `NullPointerException`.
 
-## 📋 Quick Review Checklist for Oral Presentation / Defense
+## Common mistakes
 
-| Concept | Key Point to Say to Instructor |
-|---|---|
-| **Primitive vs. Reference type?** | Primitives (`int`, `boolean`) hold raw values directly and cannot be `null`; references (`User`, `String`) hold addresses to heap objects and can be `null` (**Ch. 2.3, 3.1**). |
-| **Why return `null` on `findById` instead of throwing?** | "Not found" is a normal lookup result (e.g., checking if an email is free). The Service layer decides whether to throw `NotFoundException` (**Ch. 6.1, 6.6**). |
-| **What does `void` mean on `save(...)`?** | The method executes an action (persisting data) and returns no value (**Ch. 3.6**). |
-| **What does `nextId()` return when storage is empty?** | Primitive `int` value `1` (largest existing ID + 1). |
-| **Why name the parameter `ownerUserId`?** | Clear identifiers prevent passing a pharmacy ID by mistake when both are `int` (**Ch. 2.3**). |
+- **Calling a method on a lookup result without checking for `null`.** Always inspect single-entity repository results (`if (user == null)`) before using `.` on them.
+- **Returning `null` from a method that returns a `List`.** Returning `null` forces every caller to add a null check before a `for-each` loop. Return an empty `List` instead so loops simply run zero times.
+
+## Summary
+
+Java divides all data into primitive types, which store raw values directly and can never be `null`, and reference types, which store Heap addresses and can be `null` when no object is present. Java passes every argument by value, copying either the raw number or the object's address. In MedFinder, our repositories use primitives for mandatory IDs, nullable references for single-record lookups, and empty lists for collections, while our services check for `null` before touching any returned object.

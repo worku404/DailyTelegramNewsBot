@@ -1,69 +1,35 @@
-# Course Concept: Read-Only Abstraction & Encapsulation Guardrails (Chapters 1, 3 & 4)
+# Read-Only Interfaces and Encapsulation Guardrails (Chapters 1, 3 & 4)
 
-> **Course:** Object-Oriented Programming (Java)  
-> **Topic:** Read-Only Interfaces, Information Hiding, Encapsulation & Invariant Enforcement  
-> **Syllabus Reference:** Ch. 1.4 (Abstraction & Information Hiding), Ch. 3.4 (Encapsulation & Invariant Protection), Ch. 4.6 (Interfaces & Contract Architecture)  
-> **Where in MedFinder:** `medfinder.repository.MedicineRepository` and `medfinder.repository.LocalityRepository` (compared to `UserRepository` & `PharmacyRepository`)  
-> **Folder:** `notes/course-concepts/` (git-ignored personal study notes)
+> **Chapter:** 1.4 Core Pillars of Object-Oriented Programming (Abstraction & Encapsulation), 3.4 Encapsulation & Access Control, 4.6 Interfaces & Contract Architecture | **In MedFinder:** `medfinder.repository.MedicineRepository`, `medfinder.repository.LocalityRepository` | **Source:** MedFinder core foundation
 
----
+## What is it?
 
-## 📖 Concept Overview in 30 Seconds
+**Abstraction** means showing callers only the operations they actually need while hiding everything else. A **read-only interface** applies this idea by declaring only query methods (such as `findById` and `findActive`) and intentionally leaving out every write method (`save`, `update`, `delete`, or `nextId`).
 
-Good **Abstraction (Ch. 1.4)** is not just about what methods you *include* in an interface—it is equally about what methods you **intentionally leave out**.
+Together with **encapsulation** — protecting internal state so external code cannot break the rules of the data — a read-only interface acts as a compile-time guardrail. If an operation is not on the interface, callers cannot even compile code that tries to mutate the data.
 
-By giving `MedicineRepository` **only read methods** (`findById` and `findActive`) and omitting `save()`, `delete()`, and `nextId()`, the Java compiler itself guarantees that **no service or menu can ever modify or corrupt the medicine catalogue**.
+## Why do we need it?
 
----
+In MedFinder, some data changes while the app is running: pharmacists register new accounts, add pharmacies, and update stock. Other data is fixed reference data: the master medicine catalogue (`medicines.csv`) and the Addis Ababa locality directory (`localities.csv`) are loaded as reference lists and are never edited from the console.
 
-## 🎯 Question & Answer Study Guide (for Defense & Exams)
+If we copy-pasted `save`, `delete`, and `nextId` into `MedicineRepository` and `LocalityRepository` anyway, three problems would follow:
 
-### Question 1: Why does `MedicineRepository` have only 2 methods, while `UserRepository` has 5 and `PharmacyRepository` has 6?
+- **Broken domain rules:** any future service or menu could accidentally overwrite or delete reference medicines, violating the rule that the catalogue stays fixed at runtime.
+- **Fake methods that crash at runtime:** `FileMedicineRepository` would be forced to implement `save(Medicine)` just to throw `UnsupportedOperationException`, turning a compile-time guarantee into a runtime crash.
+- **Repeated filtering across callers:** if `MedicineRepository` exposed a generic `findAll()` instead of `findActive()`, every service that searches or lists medicines would have to remember to filter out discontinued medicines, and forgetting once would show inactive drugs to customers.
 
-**Answer:**
-Compare the business rules (SRS) of each entity in MedFinder:
+## How it works
 
-| Repository | Operations Allowed | Why? |
-|---|---|---|
-| `UserRepository` | `findById`, `findByEmail`, `findAll`, **`save`**, **`nextId`** | New pharmacists register at runtime → **Read + Write** |
-| `PharmacyRepository` | `findById`, `findByOwner`, `findByLicence`, `findByStatus`, **`save`**, **`nextId`** | Pharmacists register/edit pharmacies; admins approve/reject → **Read + Write** |
-| `MedicineRepository` | `findById`, `findActive` *(no `save`, no `delete`, no `nextId`!)* | The medicine catalogue (`medicines.csv`) is fixed reference data → **Read-Only** |
+1. **Design each interface around what callers are allowed to do.** Before adding a method to an interface, check whether the domain actually permits that action. A read-write repository (`UserRepository`, `PharmacyRepository`) needs `save` and `nextId`; a reference-data repository (`MedicineRepository`, `LocalityRepository`) does not.
+2. **Let the compiler enforce the boundary.** Because callers declare fields and parameters using the interface type (`MedicineRepository`), `javac` only permits calls to methods listed in that interface. Any attempt to call `medicineRepo.save(med)` fails immediately during compilation.
+3. **Pair minimal interfaces with defensive copies.** Even without a `save` method, returning an internal `List` directly would let a caller run `.clear()` on it. Returning a fresh copy of the list closes that back door so the internal catalogue remains untouched.
+4. **Respect the Liskov Substitution Principle.** A class implementing an interface should honor every method the interface promises. Leaving write methods off read-only interfaces avoids implementing dummy methods that break callers' expectations by throwing `UnsupportedOperationException`.
 
-Because MedFinder has **no feature** to add, rename, or delete medicines from the console, exposing a `save(Medicine)` method would be an unnecessary risk. Leaving it out enforces the business rule at compile time!
+## How MedFinder uses it
 
----
+### A deliberately minimal read-only contract
 
-### Question 2: How does a Read-Only Interface demonstrate Encapsulation and Information Hiding (Ch. 1.4 & Ch. 3.4)?
-
-**Answer:**
-- **Information Hiding (Ch. 1.4):** A caller like `SearchService` only needs to ask *"Which medicines are active?"* It does not need to know how `medicines.csv` is loaded, stored, or parsed—and it has zero access to any mutating operations.
-- **Invariant Protection (Ch. 3.4):** An *invariant* is a rule that must always stay true while the program runs (here: *"the master medicine catalogue never changes during runtime"*). Because `MedicineRepository` has no mutator methods **and** returns defensive copies from `findActive()`, this invariant cannot be violated anywhere in the service or console layers.
-
----
-
-### Question 3: Why does `MedicineRepository` have `findActive()` instead of `findAll()`?
-
-**Answer:**
-Look at the domain requirement in MedFinder's High-Level Design (HLD 4.9 & 7.3):
-- A medicine record in `medicines.csv` has an `active` boolean flag (e.g., discontinued medicines may be marked `false` while old stock history still references their ID).
-- **`findById(int id)`** can look up any medicine by ID (even if needed for historical records).
-- **`findActive()`** returns **only active medicines** so `SearchService` and `CatalogueService` never show discontinued medicines to customers.
-- Putting that filtering behind the `findActive()` contract keeps callers simpler and prevents them from forgetting to filter inactive medicines!
-
----
-
-### Question 4: Why does `MedicineRepository`'s Javadoc say *"when the underlying storage cannot be read"* instead of *"read or written"*?
-
-**Answer:**
-Attention to detail in documentation reflects accurate design:
-- `UserRepository` Javadoc: *"when the underlying storage cannot be **read or written**."*
-- `MedicineRepository` Javadoc: *"when the underlying storage cannot be **read**."*
-
-Since `MedicineRepository` never writes to disk, it can only encounter read failures when loading `medicines.csv`.
-
----
-
-### Question 5: Concrete Code Example from MedFinder (`MedicineRepository.java`)
+**Situation:** `SearchService` and `CatalogueService` need to look up medicines by ID and list currently active medicines, without ever modifying the master catalogue.
 
 ```java
 package medfinder.repository;
@@ -71,40 +37,42 @@ package medfinder.repository;
 import java.util.List;
 import medfinder.model.Medicine;
 
-/**
- * Storage contract for the medicine catalogue (read only).
- *
- * <p>Every operation throws the unchecked {@code DataStorageException}
- * when the underlying storage cannot be read.
- */
 public interface MedicineRepository {
 
-    /**
-     * Finds a medicine by id.
-     *
-     * @param id the medicine id
-     * @return the medicine, or null if there is none with that id
-     */
     Medicine findById(int id);
 
-    /**
-     * Lists the medicines that are active in the catalogue.
-     *
-     * @return a copy of the active medicines; empty if there are none
-     */
     List<Medicine> findActive();
-
-    // Intentionally NO save(), delete(), or nextId() — enforces read-only invariant!
 }
 ```
 
----
+**Walkthrough:** `MedicineRepository` exposes only two methods. `findActive()` hides inactive or discontinued medicines behind the repository boundary so callers never have to filter them by hand, while `findById(int id)` still lets the app resolve an older medicine referenced by a stock record. Just as important is what is absent: there is no `save`, `delete`, or `nextId`. If we added `save` here, a developer could accidentally mutate reference data or force the file implementation to write a stub method that throws at runtime.
 
-## 📋 Quick Review Checklist for Oral Presentation / Defense
+### Contrasting read-only vs. read-write repositories
 
-| Concept | Key Point to Say to Instructor |
-|---|---|
-| **Why is `MedicineRepository` read-only?** | The medicine catalogue is fixed reference data; omitting `save`/`delete`/`nextId` enforces this business rule at compile time (**Ch. 1.4, 3.4, 4.6**). |
-| **What OOP principle does omitting methods demonstrate?** | **Information Hiding & Invariant Protection** (only expose the minimal contract callers genuinely need). |
-| **Why `findActive()` instead of `findAll()`?** | Ensures searches and catalogue listings only ever display active medicines, preventing discontinued drugs from appearing. |
-| **Can `SearchService` accidentally erase a medicine?** | No—not through the interface (no mutators) and not through the returned list (defensive copy, **Ch. 3.4**). |
+**Situation:** unlike the fixed medicine catalogue, user accounts do change at runtime when new pharmacists register, so `UserRepository` needs write operations.
+
+```java
+public interface UserRepository {
+
+    User findById(int id);
+
+    User findByEmail(String email);
+
+    List<User> findAll();
+
+    void save(User user);
+
+    int nextId();
+}
+```
+
+**Walkthrough:** comparing `UserRepository` with `MedicineRepository` shows why MedFinder does not force every repository to share one generic CRUD interface. `UserRepository` and `PharmacyRepository` include `save` and `nextId` because the application creates and updates users and pharmacies; `MedicineRepository` and `LocalityRepository` omit them because reference data is read-only. Forcing both kinds onto one template would either expose dangerous writes on fixed data or hide needed writes on user data.
+
+## Common mistakes
+
+- **Adding `save()` "just in case" and throwing `UnsupportedOperationException`.** That turns a mistake the compiler could catch immediately into a surprise runtime crash. Omit methods that the domain forbids instead.
+- **Downcasting an interface back to its concrete class to reach extra methods.** Writing `((FileMedicineRepository) medicineRepo)` bypasses the interface guardrail and tightly couples your code to one implementation. Always depend only on the interface contract.
+
+## Summary
+
+Good abstraction is defined as much by what you leave out of an interface as by what you put in. In MedFinder, `MedicineRepository` and `LocalityRepository` intentionally omit `save`, `delete`, and `nextId` so the Java compiler prevents any service or menu from mutating fixed reference data. Combined with defensive copying and `findActive()` filtering, this design protects our domain rules at compile time instead of relying on runtime checks.

@@ -1,182 +1,76 @@
-# What is `pom.xml` and Why Do We Need It?
+# What is pom.xml? (Chapters 1 & 2)
 
-> **Personal Study Notes** — Kept in `notes/` (git-ignored, private learning documentation).
+> **Chapter:** 1.1 Program Development & Problem Solving, 2.1 Compiling & Running Java Programs, 2.2 The Java Execution Environment & JVM Internals | **In MedFinder:** `pom.xml` (project root) | **Source:** MedFinder core foundation
 
----
+## What is it?
 
-## 1. What is `pom.xml` in Plain English?
+`pom.xml` stands for **Project Object Model**. It is a single XML file that sits at the root of the project and tells Maven everything it needs to know: who the project is, what Java version it targets, which external libraries it depends on, and which build plugins to run.
 
-`pom.xml` is the **single most important file** in an Apache Maven project. 
+Think of it as a contract. Every teammate, every CI server, and every deployment pipeline reads the same file and produces an identical build. Nothing about the build lives in anyone's head or on anyone's machine alone.
 
-- **POM** stands for **Project Object Model**.
-- It is written in XML (Extensible Markup Language).
-- Think of `pom.xml` as the **blueprint, recipe, and identity card** of the entire application. It tells Maven:
-  - *Who is this project?* (Name, group, version)
-  - *What Java version does it need?* (Java 17)
-  - *What external libraries does it depend on?* (Gson, JUnit 5)
-  - *How should it be built, tested, and packaged into a `.jar` file?*
+## Why do we need it?
 
----
+Imagine the five of us building MedFinder without `pom.xml`. One person downloads Gson 2.10.1, another downloads 2.8.9. The JSON parsing code works for the first person and silently produces wrong output for the second because the APIs changed between versions. Meanwhile, we're passing around fat `.jar` files over Slack and committing them to Git, which bloats the repository. When we try to run the tests, half the team can't because JUnit isn't on the classpath. `pom.xml` fixes all of this in one place: declare a library once, pin its version, and every machine gets exactly that version.
 
-## 2. Is `pom.xml` Necessary?
+## How it works
 
-**YES, it is 100% mandatory.**
+1. Maven reads `pom.xml` at the start of every build.
+2. The **coordinates** (`<groupId>`, `<artifactId>`, `<version>`) uniquely identify our project — like an address in the Maven world. Other projects could depend on us using these three values.
+3. The **properties** section sets global variables. We set `<java.version>17</java.version>` and `<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>` here so that every plugin reads the same value from one place.
+4. The **dependencies** section lists external libraries. Each has its own coordinates plus an optional `<scope>`. Scope controls when the library is available: `compile` (the default) means it's on the classpath at compile time and bundled into the jar; `test` means it's only available during `mvn test` and is never bundled into the production jar.
+5. The **build plugins** section configures the tools Maven calls during the build lifecycle. We use three: `maven-compiler-plugin` (tells `javac` to use Java 17), `maven-surefire-plugin` (runs JUnit 5 tests), and `maven-shade-plugin` (bundles our classes and Gson into one fat jar).
 
-If you run `mvn clean test` or `mvn clean package` in a folder that does not contain a `pom.xml` file, Maven will immediately abort with this fatal error:
+## How MedFinder uses it
 
-```text
-[ERROR] The goal you specified requires a project to execute but there is no POM in this directory.
-```
+**Situation:** we need Gson at runtime (the app parses AI responses in production) but JUnit only during testing (we never ship test code to users).
 
-Maven is literally blind without `pom.xml`. Every action Maven takes is driven by the declarations inside this file.
-
----
-
-## 3. What Happens WITHOUT `pom.xml`? (The Nightmare of Manual Java)
-
-To truly appreciate `pom.xml`, imagine building **MedFinder (57 classes across 9 packages)** using only raw Java terminal commands (`javac` and `java`):
-
-### ❌ Problem 1: Manual Dependency Hunting & Clutter
-- Without Maven, where do you get **Gson** (for AI JSON) and **JUnit 5** (for testing)?
-- You would have to open a web browser, search for `gson-2.10.1.jar`, `junit-jupiter-api-5.10.2.jar`, `junit-platform-commons.jar`, `opentest4j.jar`, etc.
-- You would have to download all 8+ separate `.jar` files manually, create a `lib/` folder in your project, and commit heavy binary files into your Git repository.
-- If one teammate downloads Gson 2.8 and another downloads 2.10, code that works on one computer will crash on another!
-
-### ❌ Problem 2: Monstrous Compilation Commands
-To compile 57 classes across 9 subdirectories and link them to Gson without Maven, you would have to type this in terminal every single time you edit code:
-```bash
-javac -d target/classes -cp "lib/gson-2.10.1.jar" src/main/java/medfinder/*.java src/main/java/medfinder/model/*.java src/main/java/medfinder/service/*.java src/main/java/medfinder/repository/*.java src/main/java/medfinder/repository/file/*.java src/main/java/medfinder/logic/*.java src/main/java/medfinder/config/*.java src/main/java/medfinder/exception/*.java src/main/java/medfinder/console/*.java src/main/java/medfinder/ai/*.java
-```
-On Windows, path separators are `;`, on Linux/Mac they are `:`. Scripts written on Windows break immediately on Mac or Linux.
-
-### ❌ Problem 3: Impossible Test Automation
-Without Maven, to run your JUnit test suite, you would have to download the standalone JUnit Console Launcher and manually pass every test class and dependency path.
-
-### ❌ Problem 4: Painful Executable JAR Creation
-When presenting the project to the instructor, you need a runnable `target/medfinder.jar` that can be run with:
-```bash
-java -jar target/medfinder.jar
-```
-Without `pom.xml`:
-1. You would have to manually unzip `gson-2.10.1.jar` to extract its raw `.class` files.
-2. Merge those classes with your own compiled classes.
-3. Manually write a text file called `MANIFEST.MF` containing:
-   ```text
-   Main-Class: medfinder.Main
-   ```
-4. Run the tricky packaging command:
-   ```bash
-   jar cvfm target/medfinder.jar MANIFEST.MF -C target/classes .
-   ```
-If you make one typo in `MANIFEST.MF`, the JAR fails to run.
-
----
-
-## 4. How `pom.xml` Solves All of This
-
-With `pom.xml`, **all of the chaos above disappears**. 
-
-You just run:
-```bash
-mvn clean test        # Wipes old files, downloads libraries, compiles, runs all tests
-mvn clean package     # Does all above + builds target/medfinder.jar automatically
-```
-
----
-
-## 5. Tour of Our Actual MedFinder `pom.xml`
-
-Here is an exact walkthrough of how each part of our project's `pom.xml` works:
-
-### 1. Project Coordinates (Identity)
-```xml
-<groupId>medfinder</groupId>
-<artifactId>medfinder</artifactId>
-<version>1.0-SNAPSHOT</version>
-<packaging>jar</packaging>
-```
-- Tells Maven this project produces a **JAR** file named `medfinder`.
-
-### 2. Properties (Rules & Versions)
-```xml
-<properties>
-    <maven.compiler.release>17</maven.compiler.release>
-    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-    <gson.version>2.10.1</gson.version>
-    <junit.version>5.10.2</junit.version>
-</properties>
-```
-- `<maven.compiler.release>17</maven.compiler.release>`: Enforces **Java 17**. If anyone tries to compile with incompatible newer language features, the compiler rejects it immediately.
-- Centralizes library version numbers so updating a library requires changing only one line.
-
-### 3. Dependencies (Automated Download)
 ```xml
 <dependencies>
-    <!-- JSON parsing for AI response -->
-    <dependency>
-        <groupId>com.google.code.gson</groupId>
-        <artifactId>gson</artifactId>
-        <version>${gson.version}</version>
-    </dependency>
+  <dependency>
+    <groupId>com.google.code.gson</groupId>
+    <artifactId>gson</artifactId>
+    <version>2.10.1</version>
+    <!-- no <scope> tag = compile scope = bundled into the jar -->
+  </dependency>
 
-    <!-- Unit testing -->
-    <dependency>
-        <groupId>org.junit.jupiter</groupId>
-        <artifactId>junit-jupiter</artifactId>
-        <version>${junit.version}</version>
-        <scope>test</scope>
-    </dependency>
+  <dependency>
+    <groupId>org.junit.jupiter</groupId>
+    <artifactId>junit-jupiter</artifactId>
+    <version>5.10.2</version>
+    <scope>test</scope>
+  </dependency>
 </dependencies>
 ```
-- When Maven reads this, it automatically connects to the internet, downloads Gson and JUnit 5, and adds them to your compilation classpath.
-- `<scope>test</scope>`: Guarantees that JUnit 5 is only available when testing, preventing production code in `src/main` from accidentally depending on test helpers.
 
-### 4. Build Plugins (Automation Engines)
+**Walkthrough:** Gson has no `<scope>` tag, so Maven uses the default: `compile`. That means Gson is on the classpath when `javac` compiles our production code and it gets bundled into `target/medfinder.jar` by the shade plugin — which is what we want, because `medfinder.ai.AiResponseParser` calls Gson at runtime. JUnit has `<scope>test</scope>`, so Maven puts it on the classpath only when running `mvn test`. It is never included in the production jar. Shipping JUnit to users would add dead weight and expose test infrastructure that has no business being in a production binary.
+
+**Situation:** we need to produce a single runnable jar that includes Gson, with `medfinder.Main` as the entry point.
+
 ```xml
-<build>
-    <plugins>
-        <!-- 1. Compiler Plugin: compiles Java 17 code -->
-        <plugin>
-            <groupId>org.apache.maven.plugins</groupId>
-            <artifactId>maven-compiler-plugin</artifactId>
-            <version>3.11.0</version>
-        </plugin>
-
-        <!-- 2. Surefire Plugin: discovers and executes all JUnit 5 tests -->
-        <plugin>
-            <groupId>org.apache.maven.plugins</groupId>
-            <artifactId>maven-surefire-plugin</artifactId>
-            <version>3.2.5</version>
-        </plugin>
-
-        <!-- 3. Shade Plugin: bundles Gson directly inside target/medfinder.jar -->
-        <plugin>
-            <groupId>org.apache.maven.plugins</groupId>
-            <artifactId>maven-shade-plugin</artifactId>
-            <version>3.5.2</version>
-            <configuration>
-                <transformers>
-                    <transformer implementation="...ManifestResourceTransformer">
-                        <mainClass>medfinder.Main</mainClass>
-                    </transformer>
-                </transformers>
-            </configuration>
-        </plugin>
-    </plugins>
-</build>
+<plugin>
+  <groupId>org.apache.maven.plugins</groupId>
+  <artifactId>maven-shade-plugin</artifactId>
+  <version>3.5.2</version>
+  <configuration>
+    <transformers>
+      <transformer implementation=
+        "org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
+        <mainClass>medfinder.Main</mainClass>
+      </transformer>
+    </transformers>
+  </configuration>
+</plugin>
 ```
-- `maven-compiler-plugin`: Replaces hundreds of manual `javac` commands.
-- `maven-surefire-plugin`: Automatically runs every test file ending in `*Test.java` (like `TextSimilarityTest`, `PharmacyTest`).
-- `maven-shade-plugin`: Solves the runnable JAR problem. It bundles the Gson library directly into `target/medfinder.jar` and configures `medfinder.Main` as the entrypoint. Anyone can run the app with `java -jar target/medfinder.jar` without installing any external libraries!
 
----
+**Walkthrough:** When you run `mvn package`, the shade plugin merges our compiled `.class` files and all compile-scope dependencies (Gson) into one jar. The `ManifestResourceTransformer` writes a `MANIFEST.MF` file inside the jar that declares `Main-Class: medfinder.Main`. That's what lets you run `java -jar target/medfinder.jar` — without the manifest entry, the JVM wouldn't know where to start.
 
-## 6. Summary: Quick Reference
+## Common mistakes
 
-| Question | Answer |
-|---|---|
-| **What does POM stand for?** | Project Object Model. |
-| **Where does it live?** | In the root folder of the project (`pom.xml`). |
-| **Is it mandatory?** | Yes. Maven cannot build, compile, test, or package without it. |
-| **What are its 4 main jobs?** | 1. Define project identity & Java 17 rules.<br>2. Automatically download dependencies (Gson, JUnit).<br>3. Compile and execute unit tests.<br>4. Package the runnable `target/medfinder.jar`. |
-| **What happens without it?** | You would have to download JARs manually, type massive `javac` commands, and write custom scripts to bundle executable JARs. |
+- **Giving JUnit compile scope (or no scope).** JUnit ends up bundled into the production jar and available to production code — neither of which is intentional. Always add `<scope>test</scope>`.
+- **Omitting the UTF-8 encoding property.** Without `<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>`, `javac` falls back to the platform default, which differs across operating systems. String literals with accented characters compile correctly on one machine and corrupt on another.
+- **Adding a dependency that isn't in the assignment spec.** The project has an approved dependency list. Adding anything else — even a seemingly harmless utility library — is a rules violation. If you need a utility, write it yourself in a class like `medfinder.logic.TextSimilarity`.
+- **Not pinning plugin versions.** If you omit `<version>` on a plugin, Maven picks the latest available. The build that passes today may break tomorrow when a new plugin version changes behaviour. Always pin.
+
+## Summary
+
+`pom.xml` is the single source of truth for the MedFinder build. Its four sections — coordinates (who we are), properties (Java 17, UTF-8), dependencies (Gson at compile scope, JUnit 5 at test scope), and plugins (compiler, surefire, shade) — give every teammate and every machine an identical, reproducible build. The shade plugin is what turns our compiled classes and Gson into the runnable `target/medfinder.jar`, and the scope system is what keeps test infrastructure out of that jar.

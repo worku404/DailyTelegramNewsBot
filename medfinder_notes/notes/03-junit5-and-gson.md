@@ -1,149 +1,77 @@
-# What are JUnit 5 and Gson 2.10.1, and Why Do We Need Them?
+# JUnit 5 and Gson — The Two External Libraries (Chapters 1 & 3)
 
-> **Personal Study Notes** — Kept in `notes/` (git-ignored, private learning documentation).
+> **Chapter:** 1.1 Program Development & Problem Solving (Testing), 1.3 Low Coupling, 3.7 Packages | **In MedFinder:** `pom.xml`, `medfinder.ai.AiResponseParser` (Gson), `src/test/java/medfinder/` (JUnit 5) | **Source:** MedFinder core foundation
 
-In our project's `pom.xml`, there are **only two external libraries** allowed in the entire system:
-```xml
-<!-- Only two libraries are allowed in this project: Gson and JUnit 5. -->
-<dependencies>
-    <dependency>
-        <groupId>com.google.code.gson</groupId>
-        <artifactId>gson</artifactId>
-        <version>2.10.1</version>
-    </dependency>
+## What is it?
 
-    <dependency>
-        <groupId>org.junit.jupiter</groupId>
-        <artifactId>junit-jupiter</artifactId>
-        <version>5.10.2</version>
-        <scope>test</scope>
-    </dependency>
-</dependencies>
-```
+MedFinder is allowed exactly two external libraries. Every other utility we need, we write ourselves.
 
-Here is everything you need to know about what they are, why they are there, and what happens without them.
+**Gson** is a library from Google that converts between Java objects and JSON text. The two directions have names: turning a Java object into a JSON string is **serialization**; turning a JSON string back into a Java object is **deserialization**. We use Gson only for deserialization — the AI returns a JSON string, and Gson parses it into a Java object we can work with.
 
----
+**JUnit 5** is a testing framework. It gives us `@Test` annotations, assertion methods like `assertEquals`, and the machinery to run those tests automatically. It has nothing to do with the app itself; it only exists to verify that the app behaves correctly.
 
-# Part 1: JUnit 5 (Version 5.10.2)
+## Why do we need it?
 
-## 1. What is JUnit 5 in Plain English?
+Without Gson, parsing JSON by hand means splitting strings, hunting for curly braces, and writing brittle code that breaks the moment the AI tweaks its formatting. Gson handles all of that reliably, in one method call, in a well-tested library.
 
-**JUnit 5** is the industry-standard **automated unit testing framework** for Java.
+Without JUnit 5, verifying that `medfinder.logic.TextSimilarity.levenshtein` or `medfinder.ai.AiResponseParser.parse` works correctly means running the whole app, triggering an AI call, and reading the output with your eyes. That's slow, unrepeatable, and catches nothing automatically. JUnit lets us write a small focused test for each method and run all of them in seconds with `mvn test`.
 
-In programming:
-- A **unit test** is a small piece of code written by developers to verify that an individual method or class works exactly as intended under different conditions (normal cases, edge cases, and error cases).
-- **JUnit 5** provides the annotations (like `@Test`) and assertions (like `assertEquals`) that allow Maven to automatically run all tests whenever you type `mvn test` or `mvn clean test`.
+The reason we're limited to these two is coupling. Every external library is a dependency that can change, break, or introduce a vulnerability. The fewer we take, the less surface area we're responsible for.
 
-## 2. Why Do We Need JUnit 5 in MedFinder?
+## How it works
 
-MedFinder has complex business logic:
-- Calculating Levenshtein string distance in `TextSimilarity`.
-- Classifying stock freshness into `FRESH`, `AGING`, and `STALE` based on hours in `FreshnessClassifier`.
-- Validating immutable `Location` equality.
-- Parsing AI JSON responses in `AiResponseParser`.
+JUnit 5's model is simple: you annotate a method with `@Test`, call the code you want to verify, and use an assertion to state what the result should be. If the assertion is wrong, the test fails and Maven reports it. The key detail is that JUnit is `<scope>test</scope>` in `pom.xml`, which means Maven puts it on the classpath only during the test phase and never includes it in `target/medfinder.jar`.
 
-Without JUnit 5, every time you make a change to the code, you would have to manually run the program, type console inputs by hand, and verify outputs with your eyes. **JUnit tests run in 0.2 seconds and verify hundreds of scenarios automatically.**
+Gson's model is also simple: you create a `Gson` instance and call `fromJson(jsonString, TargetClass.class)`. Gson uses Java reflection to read the field names of `TargetClass` and fill them from the matching keys in the JSON. It is `compile` scope in `pom.xml` because the production code calls it at runtime.
 
-## 3. Where is JUnit 5 Used in Our Project?
+## How MedFinder uses it
 
-Notice the `<scope>test</scope>` tag in `pom.xml`. This means JUnit 5 code is **strictly forbidden inside `src/main`** (production code). It is only used inside `src/test/java/medfinder/`:
-
-| Test Class | Owner | What it tests |
-|---|---|---|
-| `logic/TextSimilarityTest.java` | P1 (Worku) | Levenshtein distance formula, normalisation, typo handling (e.g. "amoxcillin" matching "Amoxicillin") |
-| `logic/FreshnessClassifierTest.java` | P4 (Tesnim) | Exact boundary tests at 12 hours and 48 hours |
-| `model/LocationTest.java` | P4 (Tesnim) | Sub-city case-insensitivity, equality, and hash code |
-| `model/PharmacyTest.java` | P4 (Tesnim) | State transition validation (Pending -> Verified -> Rejected) |
-| `ai/AiResponseParserTest.java` | P2 (Tensaye) | Parsing valid JSON, fenced JSON, unsupported intent, fallback |
-| `ai/AiAssistantServiceTest.java` | P2 (Tensaye) | Resilience and fallback behavior using `FakeLlmClient` |
-
-## 4. Key JUnit 5 Features You Will See in the Code
+**Situation:** the AI returns a JSON string and we need to turn it into a usable Java object without writing a manual parser.
 
 ```java
-import org.junit.jupiter.api.Test;
-import static org.junit.jupiter.api.Assertions.*;
+// medfinder/ai/AiResponseParser.java
+public class AiResponseParser {
+    private static final Gson GSON = new Gson();
 
-class FreshnessClassifierTest {
-
-    @Test
-    void testUnder12HoursIsFresh() {
-        // Assert that 5 hours age results in Freshness.FRESH
-        assertEquals(Freshness.FRESH, FreshnessClassifier.classify(5));
-    }
-
-    @Test
-    void testInvalidNegativeHoursThrowsException() {
-        // Assert that passing -1 throws a ValidationException
-        assertThrows(ValidationException.class, () -> {
-            FreshnessClassifier.classify(-1);
-        });
+    public AiResponse parse(String rawJson) {
+        AiResponse response = GSON.fromJson(rawJson, AiResponse.class);
+        if (response == null || response.medications() == null) {
+            throw new IllegalArgumentException("AI returned unparseable JSON");
+        }
+        return response;
     }
 }
 ```
 
-- `@Test`: Marks a method as an automated test case for Maven Surefire to run.
-- `assertEquals(expected, actual)`: Fails the build if the values don't match.
-- `assertTrue(...)` / `assertFalse(...)`: Verifies boolean flags.
-- `assertThrows(Exception.class, ...)`: Verifies that an operation properly refuses bad input.
+**Walkthrough:** `GSON.fromJson(rawJson, AiResponse.class)` hands the raw JSON string and a class blueprint to Gson. Gson uses reflection to map each JSON key to a matching field in `AiResponse` and returns a filled-in instance. The null-check immediately after is not optional — LLMs can return malformed JSON, truncated output, or plain English instead of JSON. Trusting the raw response without validation would let garbage propagate into the rest of the system. Gson is imported here, in `medfinder.ai`, and nowhere else in the codebase.
 
-## 5. What Happens Without JUnit 5?
-- You cannot automate testing.
-- You have to test everything manually by typing into the terminal.
-- A bug introduced by one member could break someone else's code unnoticed until presentation day!
+**Situation:** we need to verify that `AiResponseParser.parse` correctly rejects a response where the medications list is missing.
 
----
+```java
+// src/test/java/medfinder/ai/AiResponseParserTest.java
+class AiResponseParserTest {
+    private final AiResponseParser parser = new AiResponseParser();
 
-# Part 2: Gson 2.10.1 (by Google)
-
-## 1. What is Gson in Plain English?
-
-**Gson** is an open-source Java library developed by Google that converts **Java Objects into JSON**, and **JSON text into Java Objects**.
-- **Serialization:** Java Object ➔ JSON string (e.g. `{ "name": "Amoxicillin", "price": 120.0 }`)
-- **Deserialization:** JSON string ➔ Java Object
-
-## 2. Why Do We Need Gson in MedFinder?
-
-MedFinder integrates with a real Large Language Model (LLM / AI API) in task T22–T27. 
-When a user asks:
-> *"I have a fever and need paracetamol in Bole sub-city"*
-
-The AI returns a structured JSON response:
-```json
-{
-  "kind": "SEARCH",
-  "keywords": ["paracetamol"],
-  "subCity": "Bole",
-  "notice": null
+    @Test
+    void parse_throwsOnMissingMedications() {
+        String badJson = "{\"summary\": \"ok\"}"; // medications key absent
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> parser.parse(badJson)
+        );
+    }
 }
 ```
 
-Java does not natively understand JSON strings without string parsing. **Gson converts that raw JSON response into our Java class `AiOutcome` in a single line of code:**
+**Walkthrough:** `@Test` tells JUnit 5 this method is a test case. `assertThrows` runs the lambda and expects an `IllegalArgumentException` to be thrown. If `parse` returns normally instead, the assertion fails and Maven marks the test red. This test lives in `src/test/java/medfinder/ai/`, which mirrors the production package. JUnit never appears in production source — it stays entirely inside `src/test/`.
 
-```java
-Gson gson = new Gson();
-AiOutcome outcome = gson.fromJson(jsonResponseText, AiOutcome.class);
-```
+## Common mistakes
 
-## 3. Where is Gson Used in Our Project?
+- **Importing Gson in a model or service class.** Gson belongs exclusively in `medfinder.ai.AiResponseParser`. Letting it spread to `medfinder.model` or `medfinder.service` violates the low-coupling principle — now multiple packages depend on an external library, making it harder to swap out later.
+- **Trusting the raw LLM JSON without validation.** `fromJson` returns `null` if the input is completely unparseable, and it happily returns an object with null fields if the JSON is missing keys. Always validate the result before using it.
+- **Forgetting `<scope>test</scope>` on JUnit.** Without it, JUnit is bundled into the production jar and available in production code — neither of which is intended. It also signals to anyone reading `pom.xml` that JUnit is a runtime dependency, which is wrong.
+- **Writing tests in `src/main/java/`.** Maven treats that folder as production code. Tests must live in `src/test/java/` so the surefire plugin finds them and so they're excluded from the production jar.
 
-Per document `03-architecture-and-folder-structure.md` (Section 2 & Section 4), **Gson is strictly isolated**:
-- It is **ONLY allowed in the `medfinder.ai` package** (primarily `AiResponseParser.java`).
-- No other package (model, repository, service, console) is allowed to import or touch Gson! This prevents the rest of the application from being tightly coupled to an external JSON library.
+## Summary
 
-## 4. What Happens Without Gson?
-- Without Gson, you would have to write raw string parsing logic with `indexOf("keywords")`, `substring()`, and string splitting to parse JSON responses from the AI.
-- Doing manual JSON string manipulation is notoriously fragile: if the AI adds a space or changes quotation marks, manual string parsing crashes instantly. Gson handles whitespace, formatting variations, character escaping, and type mapping cleanly and safely.
-
----
-
-# Summary Comparison Table
-
-| Aspect | JUnit 5 (`junit-jupiter`) | Gson (`gson`) |
-|---|---|---|
-| **What is it?** | Automated unit testing framework | JSON serialization / deserialization library |
-| **Creator** | JUnit team | Google |
-| **Project Scope** | `<scope>test</scope>` (Testing only) | Production runtime (Compile / Package) |
-| **Where allowed?** | `src/test/java/medfinder/` only | `medfinder.ai` package only |
-| **Why MedFinder needs it?** | Proves our 57 classes, algorithms, and business rules work automatically on `mvn test`. | Converts AI API JSON responses into strongly-typed Java `AiOutcome` objects. |
-| **What if missing?** | Must test 57 classes by hand; regression bugs go unnoticed. | Must write manual, brittle string parsers for AI responses. |
+Gson and JUnit 5 are the only two external libraries in MedFinder, and their scopes reflect their roles. Gson is `compile` scope because `medfinder.ai.AiResponseParser` calls it in production to deserialize AI responses; it is deliberately confined to the `medfinder.ai` package to keep coupling low. JUnit 5 is `test` scope because it exists only to verify behaviour during `mvn test`; it never enters the production jar. Using them correctly — right scope, right package — keeps the codebase small, predictable, and easy to audit.
