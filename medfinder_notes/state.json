@@ -1,0 +1,105 @@
+{
+  "next_index": 15,
+  "processed_prs": {
+    "1": {
+      "title": "P4: Complete T03, T04 and T05aImplement P4 tasks T03 T04 and T05a",
+      "author": "tesnimabdi16-netizen",
+      "merged_at": "2026-11-16T04:32:09Z",
+      "head_sha": "fcce48fb6fbe89806c2a90702e62ddf47f3964b7",
+      "baseline": true,
+      "notes": []
+    },
+    "2": {
+      "title": "P3: Implement PasswordHasher (T11)",
+      "author": "wubettamrat525-prog",
+      "merged_at": "2026-11-17T04:25:06Z",
+      "head_sha": "78f76b919ed8b0a7e5b8106693bd34e58b299a13",
+      "baseline": true,
+      "notes": []
+    },
+    "3": {
+      "title": "p4 Implement model validation and freshness classification with tests",
+      "author": "tesnimabdi16-netizen",
+      "merged_at": "2026-11-18T06:41:22Z",
+      "head_sha": "ea724ef7f11dac112d354435d900ab88e6a6a478",
+      "baseline": true,
+      "notes": []
+    },
+    "4": {
+      "title": "feat: add Gemini connection test and environment configuration",
+      "author": "Tensaye-Daniel",
+      "merged_at": "2026-11-18T05:32:27Z",
+      "head_sha": "576fccd325584a0853ec3d3469de4017e73f8964",
+      "baseline": true,
+      "notes": []
+    },
+    "5": {
+      "title": "feat(repository): add core repository interfaces (T06)",
+      "author": "worku404",
+      "merged_at": "2026-11-18T05:38:30Z",
+      "head_sha": "f15d9adce19152c69110793798ab9dee001c1fae",
+      "baseline": true,
+      "notes": []
+    }
+  },
+  "pr_note_queue": [],
+  "sent_files": [],
+  "note_metadata": {
+    "01-what-is-maven.md": {
+      "title": "What is Maven (`mvn`) and Why Do We Use It?",
+      "source": "backlog"
+    },
+    "02-what-is-pom-xml.md": {
+      "title": "What is `pom.xml` and Why Do We Need It?",
+      "source": "backlog"
+    },
+    "03-junit5-and-gson.md": {
+      "title": "What are JUnit 5 and Gson 2.10.1, and Why Do We Need Them?",
+      "source": "backlog"
+    },
+    "04-class-with-static-method.md": {
+      "title": "Course Concept: Class with Static Methods (Chapters 2 & 3)",
+      "source": "backlog"
+    },
+    "05-jvm-architecture-and-maven-build.md": {
+      "title": "Course Concept: JVM Execution Pipeline & Maven Build System (Chapters 1 & 2)",
+      "source": "backlog"
+    },
+    "06-packages-imports-and-namespaces.md": {
+      "title": "Course Concept: Packages, Imports & Architectural Modularity (Chapters 1 & 3)",
+      "source": "backlog"
+    },
+    "07-program-anatomy-and-main-entry-point.md": {
+      "title": "Course Concept: Program Anatomy, Javadoc & The `main` Entry Point (Chapters 2 & 3)",
+      "source": "backlog"
+    },
+    "08-abstraction-interfaces-and-loose-coupling.md": {
+      "title": "Course Concept: Abstraction, Interfaces & Loose Coupling (Chapters 1, 4 & 5)",
+      "source": "backlog"
+    },
+    "09-primitives-references-and-null-semantics.md": {
+      "title": "Course Concept: Primitive vs. Reference Types & `null` Semantics (Chapters 2 & 3)",
+      "source": "backlog"
+    },
+    "10-unchecked-exceptions-and-throws-clauses.md": {
+      "title": "Course Concept: Checked vs. Unchecked Exceptions & `throws` Clauses (Chapter 6)",
+      "source": "backlog"
+    },
+    "11-generic-lists-and-defensive-copying.md": {
+      "title": "Course Concept: Generic `List<T>` Collections & Defensive Copying (Chapters 2 & 3)",
+      "source": "backlog"
+    },
+    "12-strings-and-normalization-contracts.md": {
+      "title": "Course Concept: `String` Immutability & Normalization Contracts (Chapter 2)",
+      "source": "backlog"
+    },
+    "13-enums-and-compile-time-type-safety.md": {
+      "title": "Course Concept: Enums & Compile-Time Type Safety (Chapters 3 & 4 + Approved Extension)",
+      "source": "backlog"
+    },
+    "14-read-only-abstraction-and-encapsulation.md": {
+      "title": "Course Concept: Read-Only Abstraction & Encapsulation Guardrails (Chapters 1, 3 & 4)",
+      "source": "backlog"
+    }
+  }
+}
