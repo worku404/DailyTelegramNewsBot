@@ -43,7 +43,10 @@
     }
   },
   "pr_note_queue": [],
-  "sent_files": [],
+  "sent_files": [
+    "01-what-is-maven.md",
+    "02-what-is-pom-xml.md"
+  ],
   "note_metadata": {
     "01-what-is-maven.md": {
       "title": "What is Maven (`mvn`) and Why Do We Use It?",
