@@ -13,14 +13,21 @@ File filtering policy:
 from __future__ import annotations
 
 from dataclasses import dataclass
+import logging
+import time
 from typing import Any, Optional
 
 import requests
 
 from medfinder_notes.config import MAX_DIFF_CHARS
 
+logger = logging.getLogger("medfinder_notes.github_client")
+
 GITHUB_API_BASE = "https://api.github.com"
-REQUEST_TIMEOUT_SECONDS = 20
+REQUEST_TIMEOUT_SECONDS = 45
+MAX_RETRIES = 4
+INITIAL_RETRY_BACKOFF_SECONDS = 2.0
+TRANSIENT_STATUS_CODES: frozenset[int] = frozenset({500, 502, 503, 504})
 
 EXACT_INCLUDED_FILES: frozenset[str] = frozenset(
     {
@@ -64,6 +71,60 @@ def _build_headers(github_token: Optional[str] = None) -> dict[str, str]:
     if github_token:
         headers["Authorization"] = f"Bearer {github_token}"
     return headers
+
+
+def _get_with_retry(
+    url: str,
+    headers: dict[str, str],
+    params: Optional[dict[str, Any]] = None,
+    timeout: int = REQUEST_TIMEOUT_SECONDS,
+    max_retries: int = MAX_RETRIES,
+    initial_backoff: float = INITIAL_RETRY_BACKOFF_SECONDS,
+) -> requests.Response:
+    """Perform a GitHub GET request with automatic retry on transient network/SSL errors."""
+    last_exc: Optional[Exception] = None
+    backoff = initial_backoff
+
+    for attempt in range(1, max_retries + 1):
+        try:
+            response = requests.get(
+                url,
+                headers=headers,
+                params=params,
+                timeout=timeout,
+            )
+            if response.status_code in TRANSIENT_STATUS_CODES and attempt < max_retries:
+                logger.warning(
+                    "GitHub API returned HTTP %d for %s (attempt %d/%d). Retrying in %.1fs...",
+                    response.status_code,
+                    url,
+                    attempt,
+                    max_retries,
+                    backoff,
+                )
+                time.sleep(backoff)
+                backoff *= 2
+                continue
+            return response
+        except (
+            requests.exceptions.Timeout,
+            requests.exceptions.SSLError,
+            requests.exceptions.ConnectionError,
+        ) as exc:
+            last_exc = exc
+            if attempt >= max_retries:
+                raise
+            logger.warning(
+                "GitHub request failed (%s) on attempt %d/%d. Retrying in %.1fs...",
+                type(exc).__name__,
+                attempt,
+                max_retries,
+                backoff,
+            )
+            time.sleep(backoff)
+            backoff *= 2
+
+    raise RuntimeError(f"GitHub request failed after {max_retries} attempts: {last_exc}")
 
 
 def _parse_pr(raw: dict[str, Any]) -> PullRequestInfo:
@@ -121,7 +182,7 @@ def fetch_pull_requests(
 
     while True:
         url = f"{GITHUB_API_BASE}/repos/{owner}/{repo}/pulls"
-        response = requests.get(
+        response = _get_with_retry(
             url,
             headers=headers,
             params={
@@ -131,7 +192,6 @@ def fetch_pull_requests(
                 "per_page": 100,
                 "page": page,
             },
-            timeout=REQUEST_TIMEOUT_SECONDS,
         )
         if not response.ok:
             raise RuntimeError(
@@ -160,7 +220,7 @@ def fetch_pull_request(
     """Fetch a single Pull Request by number."""
     headers = _build_headers(github_token)
     url = f"{GITHUB_API_BASE}/repos/{owner}/{repo}/pulls/{pr_number}"
-    response = requests.get(url, headers=headers, timeout=REQUEST_TIMEOUT_SECONDS)
+    response = _get_with_retry(url, headers=headers)
     if not response.ok:
         raise RuntimeError(
             f"GitHub API error fetching PR #{pr_number} ({response.status_code}): {response.text}"
@@ -181,11 +241,10 @@ def fetch_pr_relevant_files(
 
     while True:
         url = f"{GITHUB_API_BASE}/repos/{owner}/{repo}/pulls/{pr_number}/files"
-        response = requests.get(
+        response = _get_with_retry(
             url,
             headers=headers,
             params={"per_page": 100, "page": page},
-            timeout=REQUEST_TIMEOUT_SECONDS,
         )
         if not response.ok:
             raise RuntimeError(
