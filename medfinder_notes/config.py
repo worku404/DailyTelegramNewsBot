@@ -52,11 +52,19 @@ STATE_FILE: Path = PACKAGE_DIR / "state.json"
 # ==============================================================================
 
 
-def get_telegram_credentials() -> Tuple[str, str]:
-    """Return (bot_token, chat_id) from .env / environment variables."""
+def get_telegram_credentials() -> Tuple[str, str, Optional[int]]:
+    """Return (bot_token, chat_id, topic_thread_id) from .env / environment variables.
+
+    topic_thread_id is None when USER_TOPIC_ID is not set or is blank,
+    which means messages go to the General topic (default Telegram behaviour).
+    Set USER_TOPIC_ID to the numeric thread ID of the target topic to route
+    all notes into that specific topic thread.
+    """
     bot_token: str = config("TEMP_11_DAY_REACT_BOT")
     chat_id: str = config("USER_CHAT_ID")
-    return bot_token, chat_id
+    raw_topic: str = config("USER_TOPIC_ID", default="")
+    topic_thread_id: Optional[int] = int(raw_topic.strip()) if raw_topic.strip() else None
+    return bot_token, chat_id, topic_thread_id
 
 
 def get_gemini_config() -> Tuple[list[str], str]:

@@ -53,8 +53,18 @@ def send_telegram_document(
     chat_id: str,
     file_path: Path,
     caption: str = "",
+    thread_id: Optional[int] = None,
 ) -> None:
     """Deliver a Markdown file to Telegram via the Bot API sendDocument endpoint.
+
+    Args:
+        bot_token: Telegram bot token.
+        chat_id: Target supergroup / channel chat ID.
+        file_path: Local path to the ``.md`` file to upload.
+        caption: Optional caption shown below the document.
+        thread_id: Optional topic thread ID (``message_thread_id``).
+                   When set, the document is delivered into that specific
+                   topic instead of the General topic.
 
     Raises:
         FileNotFoundError: If ``file_path`` does not exist.
@@ -67,6 +77,8 @@ def send_telegram_document(
     data: dict[str, str] = {"chat_id": chat_id}
     if caption:
         data["caption"] = caption
+    if thread_id is not None:
+        data["message_thread_id"] = str(thread_id)
 
     with file_path.open("rb") as doc:
         response = requests.post(

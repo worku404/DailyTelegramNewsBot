@@ -54,6 +54,7 @@ jobs:
           GEMINI_MODEL_NAME: ${{ secrets.GEMINI_MODEL_NAME || vars.GEMINI_MODEL_NAME }}
           TEMP_11_DAY_REACT_BOT: ${{ secrets.TEMP_11_DAY_REACT_BOT }}
           USER_CHAT_ID: ${{ secrets.USER_CHAT_ID }}
+          USER_TOPIC_ID: ${{ secrets.USER_TOPIC_ID }}
           INPUT_MODE: ${{ inputs.mode }}
           INPUT_PR_NUMBER: ${{ inputs.pr_number }}
         run: |

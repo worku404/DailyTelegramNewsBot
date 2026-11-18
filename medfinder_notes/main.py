@@ -13,7 +13,7 @@ Usage:
     python -m medfinder_notes.main                 # Sync merged PRs + send up to MAX_FILES_PER_RUN
     python -m medfinder_notes.main --sync-only     # Only analyze new merged PRs & save notes
     python -m medfinder_notes.main --send-only     # Only send queued notes to Telegram
-    python -m medfinder_notes.main --pr 6          # Force-analyze PR #6 (even if open/processed)
+    python -m medfinder_notes.main --pr 3        # Force-analyze PR #6 (even if open/processed)
     python -m medfinder_notes.main --dry-run       # Preview actions without writing or sending
 """
 
@@ -223,14 +223,14 @@ def deliver_queued_notes(
             logger.info("[DRY RUN] Would send %s | caption: %s", fname, caption)
         return chosen
 
-    bot_token, chat_id = get_telegram_credentials()
+    bot_token, chat_id, thread_id = get_telegram_credentials()
     delivered: list[str] = []
 
     for idx, fname in enumerate(chosen):
         file_path = notes_dir / fname
         caption = format_caption(fname, metadata_map.get(fname), file_path)
         logger.info("Sending %s to Telegram (%s)...", fname, caption)
-        send_telegram_document(bot_token, chat_id, file_path, caption=caption)
+        send_telegram_document(bot_token, chat_id, file_path, caption=caption, thread_id=thread_id)
         mark_file_sent(fname, state, state_file)
         delivered.append(fname)
         logger.info("Delivered %s and updated state.json.", fname)
