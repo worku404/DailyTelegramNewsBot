@@ -50,9 +50,7 @@
       ]
     }
   },
-  "pr_note_queue": [
-    "20-exception-wrapping-and-illegalstateexception.md"
-  ],
+  "pr_note_queue": [],
   "sent_files": [
     "01-what-is-maven.md",
     "02-what-is-pom-xml.md",
@@ -61,7 +59,8 @@
     "16-http-client-and-network-requests.md",
     "17-system-environment-and-file-io.md",
     "18-repository-pattern-and-data-abstraction.md",
-    "19-utility-classes-and-private-constructors.md"
+    "19-utility-classes-and-private-constructors.md",
+    "20-exception-wrapping-and-illegalstateexception.md"
   ],
   "note_metadata": {
     "01-what-is-maven.md": {
