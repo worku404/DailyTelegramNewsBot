@@ -60,7 +60,8 @@
     "17-system-environment-and-file-io.md",
     "18-repository-pattern-and-data-abstraction.md",
     "19-utility-classes-and-private-constructors.md",
-    "20-exception-wrapping-and-illegalstateexception.md"
+    "20-exception-wrapping-and-illegalstateexception.md",
+    "05-jvm-architecture-and-maven-build.md"
   ],
   "note_metadata": {
     "01-what-is-maven.md": {
