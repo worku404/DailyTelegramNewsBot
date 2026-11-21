@@ -62,7 +62,9 @@
     "19-utility-classes-and-private-constructors.md",
     "20-exception-wrapping-and-illegalstateexception.md",
     "05-jvm-architecture-and-maven-build.md",
-    "06-packages-imports-and-namespaces.md"
+    "06-packages-imports-and-namespaces.md",
+    "07-program-anatomy-and-main-entry-point.md",
+    "08-abstraction-interfaces-and-loose-coupling.md"
   ],
   "note_metadata": {
     "01-what-is-maven.md": {
