@@ -66,7 +66,9 @@
     "07-program-anatomy-and-main-entry-point.md",
     "08-abstraction-interfaces-and-loose-coupling.md",
     "09-primitives-references-and-null-semantics.md",
-    "10-unchecked-exceptions-and-throws-clauses.md"
+    "10-unchecked-exceptions-and-throws-clauses.md",
+    "11-generic-lists-and-defensive-copying.md",
+    "12-strings-and-normalization-contracts.md"
   ],
   "note_metadata": {
     "01-what-is-maven.md": {
