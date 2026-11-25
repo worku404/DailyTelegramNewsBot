@@ -70,7 +70,8 @@
     "11-generic-lists-and-defensive-copying.md",
     "12-strings-and-normalization-contracts.md",
     "13-enums-and-compile-time-type-safety.md",
-    "14-read-only-abstraction-and-encapsulation.md"
+    "14-read-only-abstraction-and-encapsulation.md",
+    "15-encapsulation-and-invariant-enforcement.md"
   ],
   "note_metadata": {
     "01-what-is-maven.md": {
